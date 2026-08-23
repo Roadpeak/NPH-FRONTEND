@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * NHP palette.
+ *
+ * Defined as raw RGB triples so Tailwind's `<alpha-value>` works — that lets
+ * `bg-gov/10` and `text-ink/60` behave, which matters for the density the
+ * clinician screens need.
+ *
+ * Light is the default. Dark is redefined at token level only, so no
+ * component ever needs to know which theme it is in.
+ */
+@layer base {
+  :root {
+    --ink: 13 27 42;
+    --ink-soft: 53 72 92;
+    --ink-faint: 107 127 147;
+
+    --surface: 255 255 255;
+    --surface-alt: 244 248 251;
+    --surface-sunken: 251 252 253;
+
+    --rule: 221 229 237;
+    --rule-soft: 234 240 246;
+
+    --gov: 10 61 98;
+    --gov-soft: 232 240 247;
+
+    --green: 26 127 75;
+    --green-soft: 230 244 236;
+
+    --red: 168 32 46;
+    --red-soft: 251 233 235;
+
+    --amber: 138 90 0;
+    --amber-soft: 253 242 220;
+  }
+
+  /* The default "system" setting stamps nothing on the root element, so
+     prefers-color-scheme is the only signal. Guarded so an explicit light
+     choice still beats a dark OS. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --ink: 232 238 245;
+      --ink-soft: 169 186 203;
+      --ink-faint: 117 137 157;
+
+      --surface: 17 27 36;
+      --surface-alt: 22 34 45;
+      --surface-sunken: 11 18 25;
+
+      --rule: 36 49 63;
+      --rule-soft: 27 38 50;
+
+      --gov: 125 184 232;
+      --gov-soft: 20 41 58;
+
+      --green: 95 206 151;
+      --green-soft: 18 41 30;
+
+      --red: 240 138 149;
+      --red-soft: 43 20 24;
+
+      --amber: 229 183 104;
+      --amber-soft: 42 33 19;
+    }
+  }
+
+  /* An explicit dark choice wins in the other direction. */
+  :root[data-theme='dark'] {
+    --ink: 232 238 245;
+    --ink-soft: 169 186 203;
+    --ink-faint: 117 137 157;
+
+    --surface: 17 27 36;
+    --surface-alt: 22 34 45;
+    --surface-sunken: 11 18 25;
+
+    --rule: 36 49 63;
+    --rule-soft: 27 38 50;
+
+    --gov: 125 184 232;
+    --gov-soft: 20 41 58;
+
+    --green: 95 206 151;
+    --green-soft: 18 41 30;
+
+    --red: 240 138 149;
+    --red-soft: 43 20 24;
+
+    --amber: 229 183 104;
+    --amber-soft: 42 33 19;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-surface-sunken text-ink antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04';
+  }
+
+  /* Keyboard focus must be visible — the encounter screen is designed to be
+     driven without a mouse, so a lost focus ring is a broken screen. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-gov ring-offset-2 ring-offset-surface;
+  }
+
+  /* Digits in columns should line up. */
+  table,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /** A mono uppercase label. Used for section eyebrows and field captions. */
+  .eyebrow {
+    @apply font-mono text-label uppercase tracking-[0.12em] text-ink-faint;
+  }
+
+  /** Severity chips. State is encoded in form as well as colour, so the
+      banner reads at a glance and does not depend on hue alone. */
+  .chip {
+    @apply inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-[0.7rem] font-semibold;
+  }
+  .chip-critical {
+    @apply bg-critical-soft text-critical;
+  }
+  .chip-caution {
+    @apply bg-caution-soft text-caution;
+  }
+  .chip-good {
+    @apply bg-good-soft text-good;
+  }
+  .chip-gov {
+    @apply bg-gov-soft text-gov;
+  }
+}
