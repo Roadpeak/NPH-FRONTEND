@@ -98,9 +98,25 @@ last.
 vertical space, and the moment allergies live behind a tab the safety
 guarantee is gone.
 
+**Citizen timeline** (`/me`) — the same record in plain language.
+
+"A long-term condition where your blood sugar is too high" is the heading;
+"Type 2 diabetes mellitus · Code 5A11" sits underneath. English and Swahili
+throughout, interface as well as content — *Habari, Achieng' · Kwa sasa ·
+Una mzio wa Penicillin · Dkt Amina Wanjiru*.
+
+Login routes by role: a citizen goes to `/me`, a clinician to `/encounter`.
+Sending a citizen to a clinical screen produces a permission wall through no
+fault of their own, which reads as the system being broken.
+
+Two tabs so far — Record and Who has seen it. Break-glass entries are the
+most prominent thing in the access log deliberately: an override the patient
+can see and query is a very different thing from one they cannot.
+
 ### To build
 
-1. ~~Clinician patient summary~~ — done — the most-viewed screen; home of the
+1. ~~Clinician patient summary~~ — done
+2. ~~Citizen timeline~~ — done — the most-viewed screen; home of the
    safety banner.
 3. **Citizen timeline** — the same record in plain language, English and
    Swahili.

@@ -296,6 +296,57 @@ export interface ProcedureRecord {
   isSelfReported: boolean;
 }
 
+export interface CitizenSummaryPayload {
+  name: string;
+  displayNumber: string;
+  age: number;
+  rightNow: Array<{
+    kind: 'MEDICATION' | 'CHRONIC' | 'ALLERGY';
+    title: string;
+    detail: string;
+    tone: 'good' | 'caution' | 'critical';
+  }>;
+  dailyMedicines: Array<{ name: string; forWhat: string | null; regimen: string }>;
+  pendingClinicianContact: boolean;
+  ui: Record<string, string>;
+}
+
+export interface CitizenVisit {
+  encounterId: string;
+  when: string;
+  facilityName: string;
+  whatHappened: string;
+  clinicalTitle: string | null;
+  icd11Code: string | null;
+  treatedBy: string;
+  medicines: Array<{ name: string; plain: string | null; regimen: string }>;
+  withheld: boolean;
+}
+
+export interface AccessEntry {
+  occurredAt: string;
+  facilityId: string | null;
+  actorId: string;
+  actorKind: string;
+  action: string;
+  isEmergencyAccess: boolean;
+  reasonPlain: string;
+  outcome: string;
+}
+
+export const citizen = {
+  summary: (lang: 'en' | 'sw' = 'en') =>
+    api.get<CitizenSummaryPayload>(`/persons/me/summary?lang=${lang}`),
+
+  visits: (lang: 'en' | 'sw' = 'en') =>
+    api.get<CitizenVisit[]>(`/persons/me/visits?lang=${lang}`),
+
+  accessLog: () => api.get<AccessEntry[]>('/persons/me/access-log'),
+
+  dispute: (encounterId: string, note: string) =>
+    api.post<unknown>('/persons/me/disputes', { encounterId, note }),
+};
+
 export const nhp = {
   searchPatients: (identifier: string) =>
     api.get<{ match: PersonSummary | null; dependants: PersonSummary[] }>(

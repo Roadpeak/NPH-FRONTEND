@@ -5,6 +5,17 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { auth, setSession, ApiError } from '@/lib/api';
 
 /**
+ * Where a session belongs.
+ *
+ * A citizen sent to a clinical screen hits a permission wall through no
+ * fault of their own, which reads as the system being broken.
+ */
+async function landingFor(): Promise<string> {
+  const me = await auth.me();
+  return me.practitionerId ? '/encounter' : '/me';
+}
+
+/**
  * Sign in.
  *
  * Two stages, because clinical accounts require a second factor and the
@@ -45,7 +56,7 @@ function LoginForm() {
         setStage('MFA');
       } else {
         setSession(result.accessToken!, result.csrfToken ?? null);
-        router.push('/encounter');
+        router.push(await landingFor());
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not reach the server');
@@ -61,7 +72,7 @@ function LoginForm() {
     try {
       const result = await auth.completeMfa(mfaToken, code);
       setSession(result.accessToken!, result.csrfToken ?? null);
-      router.push('/encounter');
+      router.push(await landingFor());
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not reach the server');
       setCode('');
