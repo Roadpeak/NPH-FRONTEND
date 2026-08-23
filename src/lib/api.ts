@@ -248,6 +248,54 @@ export const auth = {
   logout: () => api.post<{ revoked: number }>('/auth/logout'),
 };
 
+export interface TimelineEncounter {
+  id: string;
+  kind: string;
+  startedAt: string;
+  chiefComplaint: string;
+  disposition: string | null;
+  facilityName: string;
+  facilityKephLevel: number | null;
+  recordedByName: string;
+  recordedByCadre: string | null;
+  licenceNumber: string;
+  conditions: Array<{ icd11Code: string; icd11Title: string; clinicalStatus: string }>;
+  medications: Array<{
+    genericName: string;
+    doseAmount: string;
+    doseUnit: string;
+    frequency: string;
+  }>;
+}
+
+export interface KeyResult {
+  code: string;
+  label: string;
+  category: string;
+  unit: string | null;
+  latest: {
+    value: number | string | null;
+    observedAt: string;
+    abnormalFlag: 'LOW' | 'NORMAL' | 'HIGH' | 'CRITICAL' | null;
+  };
+  refLow: number | null;
+  refHigh: number | null;
+  series: Array<{ value: number; observedAt: string }>;
+}
+
+export interface ProcedureRecord {
+  code: string;
+  title: string;
+  performedOn: string;
+  datePrecision: string;
+  externalFacilityName: string | null;
+  performedAtFacilityId: string | null;
+  indication: string;
+  outcome: string | null;
+  complications: string | null;
+  isSelfReported: boolean;
+}
+
 export const nhp = {
   searchPatients: (identifier: string) =>
     api.get<{ match: PersonSummary | null; dependants: PersonSummary[] }>(
@@ -255,6 +303,14 @@ export const nhp = {
     ),
 
   patientSummary: (nhpId: string) => api.get<PatientSummary>(`/persons/${nhpId}/summary`),
+
+  patientTimeline: (nhpId: string, limit = 20) =>
+    api.get<TimelineEncounter[]>(`/persons/${nhpId}/encounters?limit=${limit}`),
+
+  keyResults: (nhpId: string) => api.get<KeyResult[]>(`/persons/${nhpId}/results`),
+
+  procedures: (nhpId: string) =>
+    api.get<ProcedureRecord[]>(`/persons/${nhpId}/procedures`),
 
   currentSession: () => api.get<CheckInSession | null>('/check-ins/current'),
 

@@ -77,9 +77,30 @@ The search index is 20 KB of local JSON, so step 1 of the resolution ladder
 never touches the network. Steps 2–4 (full local ICD-11, the WHO API, an
 uncoded note) sit behind it and none may block typing.
 
+**Clinician patient summary** (`/patient/[nhpId]`) — the most-viewed screen.
+
+Three columns answering three questions: *what is wrong with them · what has
+been happening · what are the numbers doing*. Everything capable of causing
+harm is visible without scrolling.
+
+Key results carry a **sparkline over the series**, not just the latest value
+— a single HbA1c of 8.4% is a number, six readings trending upward is a
+clinical finding. Hand-drawn SVG rather than a chart library, because the
+component is smaller than the import would be.
+
+Past procedures distinguish documented from remembered history: a
+`patient-recalled · not verified` chip on anything the patient only recalls.
+And every encounter names its author — *Dr Amina Wanjiru · KMPDC/12345* —
+because raw ids build no trust and let nobody call whoever saw the patient
+last.
+
+**Do not reorganise this into tabs.** Someone will propose it to reclaim
+vertical space, and the moment allergies live behind a tab the safety
+guarantee is gone.
+
 ### To build
 
-1. **Clinician patient summary** — the most-viewed screen; home of the
+1. ~~Clinician patient summary~~ — done — the most-viewed screen; home of the
    safety banner.
 3. **Citizen timeline** — the same record in plain language, English and
    Swahili.
