@@ -45,17 +45,40 @@ Flag colours are **semantic, never decorative**. Three theme states are
 supported — light, dark, and the un-stamped "system" default — with dark
 redefining tokens only, so no component knows which theme it is in.
 
-## Screens to build
+## Screens
 
-From the wireframes, in adoption-risk order:
+### Built
 
-1. **Encounter entry** — the screen that decides adoption. The 16-keystroke
-   coded encounter, the fixed allergy banner, the contraindication interrupt.
-2. **Clinician patient summary** — the most-viewed screen; home of the
+**Encounter entry** (`/encounter`) — the screen that decides adoption.
+
+Verified in a browser: typing `mal` returns *Plasmodium falciparum malaria*
+first, pre-highlighted, in **0ms** — the specific code ranking above
+"Malaria, unspecified" because ties prefer specificity. `pressure` resolves
+to hypertension, `kisukari` to diabetes, `URTI` to upper respiratory tract
+infection. Two coded diagnoses recorded with no mouse and no navigation;
+focus returns to the box after each.
+
+Selecting amoxicillin for a penicillin-allergic patient fires the
+contraindication interrupt **at selection**, names the allergy with its
+provenance, offers three safe alternatives, and keeps "Prescribe anyway"
+available — blocking a clinician outright is how people learn to route
+around a system.
+
+The search index is 20 KB of local JSON, so step 1 of the resolution ladder
+never touches the network. Steps 2–4 (full local ICD-11, the WHO API, an
+uncoded note) sit behind it and none may block typing.
+
+### To build
+
+1. **Clinician patient summary** — the most-viewed screen; home of the
    safety banner.
 3. **Citizen timeline** — the same record in plain language, English and
    Swahili.
 4. **Ministry map** — county choropleth, drill to subcounty, outbreak view.
+
+Encounter entry currently runs on demo data — the backend endpoints exist
+and are tested, but auth and check-in are not wired, so it proves the
+interaction rather than the integration.
 
 ## Non-negotiables
 
