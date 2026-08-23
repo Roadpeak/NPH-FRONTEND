@@ -7,7 +7,7 @@
  * it becomes a published package rather than a cross-repo import.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4400/api/v1';
 
 export class ApiError extends Error {
   constructor(
@@ -27,6 +27,13 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
   idempotencyKey?: string;
 }
 
+/**
+ * Development shortcut until auth lands: the API identifies the clinician
+ * from a header. Any client can forge it, which is why the server refuses
+ * to start in production without an explicit override.
+ */
+const DEMO_PRACTITIONER = process.env.NEXT_PUBLIC_DEMO_PRACTITIONER_ID;
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, idempotencyKey, headers, ...rest } = options;
 
@@ -34,6 +41,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     ...rest,
     headers: {
       'Content-Type': 'application/json',
+      ...(DEMO_PRACTITIONER ? { 'X-Practitioner-Id': DEMO_PRACTITIONER } : {}),
       ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
       ...headers,
     },
@@ -167,4 +175,13 @@ export const nhp = {
 
   checkPrescribing: (body: { personId: string; kemlCode: string }) =>
     api.post<PrescribingCheck>('/clinical/prescribing-check', body),
+
+  openEncounter: (body: { personId: string; kind: string; chiefComplaint: string }) =>
+    api.post<{ id: string }>('/encounters', body),
+
+  recordDiagnosis: (encounterId: string, body: { icd11Code: string }) =>
+    api.post<{ id: string; icd11Title: string }>(
+      `/encounters/${encounterId}/conditions`,
+      body,
+    ),
 };

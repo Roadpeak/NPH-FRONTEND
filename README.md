@@ -11,12 +11,22 @@ contract is the only coupling.
 
 ```bash
 pnpm install
-cp .env.local.example .env.local   # point NEXT_PUBLIC_API_URL at the backend
+cp .env.local.example .env.local
 pnpm dev                           # http://localhost:3100
 ```
 
-Port 3100 is deliberate — 3000 and 3010 are already taken by other projects
-on this machine.
+Needs the backend running:
+
+```bash
+cd ../nhp && pnpm db:up && pnpm seed && pnpm seed:demo && pnpm serve
+```
+
+`seed:demo` prints an `X-Practitioner-Id` — put it in
+`NEXT_PUBLIC_DEMO_PRACTITIONER_ID`. It changes on every reseed, and the
+backend's `pnpm test` wipes the demo data.
+
+Ports 3100 (frontend) and 4400 (API) are deliberate — 3000, 3010 and 4000
+are taken by other projects on this machine.
 
 ## Stack
 
@@ -76,9 +86,24 @@ uncoded note) sit behind it and none may block typing.
    Swahili.
 4. **Ministry map** — county choropleth, drill to subcounty, outbreak view.
 
-Encounter entry currently runs on demo data — the backend endpoints exist
-and are tested, but auth and check-in are not wired, so it proves the
-interaction rather than the integration.
+Encounter entry runs against the **live backend**. The patient identity,
+allergies, current medications and chronic conditions all come from
+PostgreSQL through `/api/v1`, and the contraindication check is the real
+`checkPrescribing` service — not a client-side approximation, because a
+safety decision must not live somewhere a client can skip it.
+
+The search index stays local (20 KB JSON) since step 1 of the resolution
+ladder must never wait on the network.
+
+**Auth is not built.** The API identifies the clinician from a header, which
+any client could forge. Everything else — the check-in gate, the licence
+check, the append-only triggers — is real.
+
+### If the banner cannot load
+
+It shows a loud failure rather than an empty allergy list. An empty banner
+reads as "no allergies", which is the most dangerous possible failure of
+this screen.
 
 ## Non-negotiables
 

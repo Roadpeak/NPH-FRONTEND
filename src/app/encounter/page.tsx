@@ -23,30 +23,10 @@ import {
  * in sixteen keystrokes, without touching the mouse.
  */
 
-// Stands in for GET /persons/:nhpId/summary until auth lands.
-const DEMO_PATIENT = {
-  displayNumber: 'NHP-8C41-2290',
-  givenName: "Achieng'",
-  familyName: 'Otieno Wanjala',
-  age: 34,
-  sex: 'F',
-  bloodGroup: 'O+',
-  county: 'Kisumu / Kisumu Central',
-  allergies: [
-    { substanceLabel: 'Penicillin', severity: 'ANAPHYLAXIS' as const, reaction: 'anaphylaxis' },
-    { substanceLabel: 'Sulfa', severity: 'MODERATE' as const, reaction: 'rash' },
-  ],
-  medications: [
-    { genericName: 'Metformin', doseAmount: 500, doseUnit: 'mg', frequency: 'BD' },
-    { genericName: 'Amlodipine', doseAmount: 5, doseUnit: 'mg', frequency: 'OD' },
-  ],
-  chronicConditions: [
-    { icd11Title: 'Type 2 diabetes mellitus' },
-    { icd11Title: 'Essential hypertension' },
-  ],
-  alerts: ['Pregnant · 22 weeks'],
-  restrictedRecordsExist: true,
-};
+import { nhp, ApiError, type PatientSummary } from '@/lib/api';
+
+/** The demo patient's National ID, from `pnpm seed:demo` in the backend. */
+const DEMO_IDENTIFIER = '39104882';
 
 interface RecordedDiagnosis {
   code: string;
@@ -69,6 +49,8 @@ const STEPS = [
 ] as const;
 
 export default function EncounterPage() {
+  const [patient, setPatient] = useState<PatientSummary | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [diagnosisIndex, setDiagnosisIndex] = useState<DiagnosisTerm[]>([]);
   const [medicationIndex, setMedicationIndex] = useState<MedicationTerm[]>([]);
   const [step, setStep] = useState(1);
@@ -84,6 +66,33 @@ export default function EncounterPage() {
   useEffect(() => {
     loadDiagnosisIndex().then(setDiagnosisIndex);
     loadMedicationIndex().then(setMedicationIndex);
+  }, []);
+
+  // Real data from NHP-BACKEND. The search index stays local — step 1 of the
+  // resolution ladder must never wait on the network — but everything about
+  // the patient comes from the API, through the check-in gate.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const found = await nhp.searchPatients(DEMO_IDENTIFIER);
+        if (!found.match) throw new Error('Demo patient not found');
+        const summary = await nhp.patientSummary(found.match.id);
+        if (!cancelled) setPatient(summary);
+      } catch (err) {
+        if (cancelled) return;
+        setLoadError(
+          err instanceof ApiError
+            ? `${err.message} (${err.code})`
+            : err instanceof Error
+              ? err.message
+              : 'Could not reach the API',
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const queryDiagnoses = useCallback(
@@ -119,27 +128,23 @@ export default function EncounterPage() {
     );
   }
 
-  function addMedication(result: SearchResult) {
+  async function addMedication(result: SearchResult) {
     const drug = medicationIndex.find((m) => m.c === result.code);
-    if (!drug) return;
+    if (!drug || !patient) return;
 
-    // The contraindication interrupt fires at SELECTION, not on submit.
-    // Names the allergy with its provenance and offers alternatives.
-    const clash = DEMO_PATIENT.allergies.find(
-      (a) =>
-        drug.ac === 'PENICILLIN' && a.substanceLabel === 'Penicillin',
-    );
+    // The contraindication check runs on the BACKEND, at selection time.
+    // Doing it client-side would put a safety decision somewhere a client
+    // can skip it.
+    const check = await nhp.checkPrescribing({
+      personId: patient.person.id,
+      kemlCode: drug.c,
+    });
 
-    if (clash) {
+    if (check.verdict !== 'ALLOW') {
       setInterrupt({
         drug: drug.g,
-        reason:
-          `${drug.g} is a penicillin-class antibiotic. This patient has a ` +
-          `${clash.severity} recorded reaction.`,
-        alternatives: medicationIndex
-          .filter((m) => m.ac === 'MACROLIDE' || m.ac === 'TETRACYCLINE')
-          .slice(0, 3)
-          .map((m) => m.g),
+        reason: check.reasons.join(' '),
+        alternatives: check.alternatives.map((a) => a.genericName),
       });
       return;
     }
@@ -157,12 +162,18 @@ export default function EncounterPage() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="min-w-0">
             <h1 className="truncate text-base font-semibold">
-              {DEMO_PATIENT.givenName} {DEMO_PATIENT.familyName}
+              {patient
+                ? `${patient.person.givenName} ${patient.person.familyName}`
+                : 'Loading patient…'}
             </h1>
             <p className="truncate font-mono text-micro text-ink-faint">
-              {DEMO_PATIENT.displayNumber} · {DEMO_PATIENT.sex} ·{' '}
-              {DEMO_PATIENT.age}y · {DEMO_PATIENT.county} · Blood group{' '}
-              {DEMO_PATIENT.bloodGroup}
+              {patient
+                ? `${patient.person.displayNumber} · ${patient.person.sexAtBirth[0]} · ` +
+                  `${patient.person.age}y` +
+                  (patient.person.bloodGroup
+                    ? ` · Blood group ${patient.person.bloodGroup.replace('_POS', '+').replace('_NEG', '−')}`
+                    : '')
+                : 'from NHP-BACKEND'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -176,13 +187,27 @@ export default function EncounterPage() {
         </div>
       </header>
 
-      <SafetyBanner
-        allergies={DEMO_PATIENT.allergies}
-        medications={DEMO_PATIENT.medications}
-        chronicConditions={DEMO_PATIENT.chronicConditions}
-        alerts={DEMO_PATIENT.alerts}
-        restrictedRecordsExist={DEMO_PATIENT.restrictedRecordsExist}
-      />
+      {loadError ? (
+        /* If the banner cannot load, say so loudly. Showing an empty
+           allergy list when the API is unreachable would read as "no
+           allergies", which is the most dangerous possible failure. */
+        <div className="border-y border-critical/30 bg-critical-soft px-4 py-3 sm:px-6">
+          <p className="mx-auto max-w-6xl text-sm font-semibold text-critical">
+            ⚠ Could not load this patient&rsquo;s safety information — {loadError}
+          </p>
+          <p className="mx-auto max-w-6xl text-micro text-ink-soft">
+            Do not prescribe from this screen until it loads. Check the paper
+            record.
+          </p>
+        </div>
+      ) : (
+        <SafetyBanner
+          allergies={patient?.allergies ?? []}
+          medications={patient?.medications ?? []}
+          chronicConditions={patient?.chronicConditions ?? []}
+          restrictedRecordsExist={patient?.restrictedRecordsExist ?? false}
+        />
+      )}
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <div className="grid gap-6 lg:grid-cols-[176px_minmax(0,1fr)]">
@@ -335,10 +360,6 @@ export default function EncounterPage() {
               ⚠ Contraindicated — documented allergy
             </p>
             <p className="mb-3 text-sm text-ink-soft">{interrupt.reason}</p>
-            <p className="mb-3 font-mono text-micro text-ink-faint">
-              Recorded 14 Mar 2024 · Kisumu County Referral · Dr J. Ochieng
-            </p>
-
             <p className="eyebrow mb-2">Suggested alternatives</p>
             <div className="mb-4 flex flex-wrap gap-2">
               {interrupt.alternatives.map((alt) => (
