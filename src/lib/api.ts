@@ -220,6 +220,8 @@ export interface LoginResult {
   csrfToken?: string;
   mfaToken?: string;
   mfaMode?: 'SMS' | 'TOTP';
+  /** Masked destination for an SMS factor, e.g. +2547***678. */
+  sentTo?: string;
 }
 
 export const auth = {
@@ -228,6 +230,11 @@ export const auth = {
 
   completeMfa: (mfaToken: string, code: string) =>
     api.post<LoginResult>('/auth/mfa', { mfaToken, code }),
+
+  resendMfaCode: (mfaToken: string) =>
+    api.post<{ sentTo: string; expiresInMinutes: number }>('/auth/mfa/resend', {
+      mfaToken,
+    }),
 
   me: () =>
     api.get<{

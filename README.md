@@ -110,6 +110,11 @@ cookie must not silently confer a second factor — so a clinician returning
 after a reload is sent to `/login?reason=mfa` with an explanation rather
 than a bare error.
 
+The second factor is **SMS or TOTP**. For SMS the screen shows a masked
+destination (`+2547***333`) and offers a resend; for TOTP it asks for the
+authenticator code. Resend is offered once, because each new code
+invalidates the previous one and repeated taps only confuse the clinician.
+
 ### If the banner cannot load
 
 It shows a loud failure rather than an empty allergy list. An empty banner

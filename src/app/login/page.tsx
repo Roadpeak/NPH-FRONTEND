@@ -26,6 +26,9 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [mfaToken, setMfaToken] = useState('');
+  const [mfaMode, setMfaMode] = useState<'SMS' | 'TOTP'>('TOTP');
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [resent, setResent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -37,6 +40,8 @@ function LoginForm() {
       const result = await auth.login(phone, password);
       if (result.status === 'MFA_REQUIRED') {
         setMfaToken(result.mfaToken!);
+        setMfaMode(result.mfaMode ?? 'TOTP');
+        setSentTo(result.sentTo ?? null);
         setStage('MFA');
       } else {
         setSession(result.accessToken!, result.csrfToken ?? null);
@@ -136,8 +141,15 @@ function LoginForm() {
               <h2 className="mb-1 text-base font-semibold">Second factor</h2>
               <p className="mb-4 text-sm text-ink-soft">
                 Clinical accounts reach identifiable health data, so a second
-                factor is required. Enter the six-digit code from your
-                authenticator app.
+                factor is required.{' '}
+                {mfaMode === 'SMS' ? (
+                  <>
+                    We sent a code to{' '}
+                    <span className="font-mono text-ink">{sentTo}</span>.
+                  </>
+                ) : (
+                  'Enter the six-digit code from your authenticator app.'
+                )}
               </p>
 
               <label htmlFor="code" className="eyebrow mb-1.5 block">
@@ -168,11 +180,41 @@ function LoginForm() {
                 {busy ? 'Verifying…' : 'Verify'}
               </button>
 
+              {mfaMode === 'SMS' && (
+                <button
+                  type="button"
+                  disabled={busy || resent}
+                  onClick={async () => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const result = await auth.resendMfaCode(mfaToken);
+                      setSentTo(result.sentTo);
+                      // Once only: each resend invalidates the previous
+                      // code, so repeated taps just confuse the clinician.
+                      setResent(true);
+                      setCode('');
+                    } catch (err) {
+                      setError(
+                        err instanceof ApiError ? err.message : 'Could not resend',
+                      );
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  className="mt-2 w-full rounded-md px-4 py-2 text-sm text-gov disabled:text-ink-faint"
+                >
+                  {resent ? 'Code resent — check your phone' : 'Resend the code'}
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
                   setStage('CREDENTIALS');
                   setCode('');
+                  setSentTo(null);
+                  setResent(false);
                   setError(null);
                 }}
                 className="mt-2 w-full rounded-md px-4 py-2 text-sm text-ink-soft"
