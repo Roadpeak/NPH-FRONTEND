@@ -21,9 +21,8 @@ Needs the backend running:
 cd ../nhp && pnpm db:up && pnpm seed && pnpm seed:demo && pnpm serve
 ```
 
-`seed:demo` prints an `X-Practitioner-Id` — put it in
-`NEXT_PUBLIC_DEMO_PRACTITIONER_ID`. It changes on every reseed, and the
-backend's `pnpm test` wipes the demo data.
+`seed:demo` prints demo credentials and a TOTP secret. Sign in at
+`/login`.
 
 Ports 3100 (frontend) and 4400 (API) are deliberate — 3000, 3010 and 4000
 are taken by other projects on this machine.
@@ -95,9 +94,13 @@ safety decision must not live somewhere a client can skip it.
 The search index stays local (20 KB JSON) since step 1 of the resolution
 ladder must never wait on the network.
 
-**Auth is not built.** The API identifies the clinician from a header, which
-any client could forge. Everything else — the check-in gate, the licence
-check, the append-only triggers — is real.
+**Auth is real.** Password, then a TOTP second factor for clinical accounts,
+then a bearer token. `/encounter` redirects to `/login` without a session.
+
+The access token is held **in memory, not localStorage** — a token in
+localStorage is readable by any injected script, and this one reaches
+patient data. A reload therefore means signing in again, until the API sets
+an httpOnly refresh cookie.
 
 ### If the banner cannot load
 

@@ -28,11 +28,22 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
 }
 
 /**
- * Development shortcut until auth lands: the API identifies the clinician
- * from a header. Any client can forge it, which is why the server refuses
- * to start in production without an explicit override.
+ * The access token for this session.
+ *
+ * Held in memory, not localStorage: a token in localStorage is readable by
+ * any script that gets injected into the page, and this one reaches patient
+ * data. The refresh token is what survives a reload, and it should live in
+ * an httpOnly cookie once the API sets one.
  */
-const DEMO_PRACTITIONER = process.env.NEXT_PUBLIC_DEMO_PRACTITIONER_ID;
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+}
+
+export function hasSession(): boolean {
+  return accessToken !== null;
+}
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, idempotencyKey, headers, ...rest } = options;
@@ -41,7 +52,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     ...rest,
     headers: {
       'Content-Type': 'application/json',
-      ...(DEMO_PRACTITIONER ? { 'X-Practitioner-Id': DEMO_PRACTITIONER } : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
       ...headers,
     },
@@ -154,6 +165,33 @@ export interface PrescribingCheck {
 }
 
 // ---------------------------------------------------------------- endpoints
+
+export interface LoginResult {
+  status: 'AUTHENTICATED' | 'MFA_REQUIRED';
+  accessToken?: string;
+  refreshToken?: string;
+  mfaToken?: string;
+  mfaMode?: 'SMS' | 'TOTP';
+}
+
+export const auth = {
+  login: (phone: string, password: string) =>
+    api.post<LoginResult>('/auth/login', { phone, password }),
+
+  completeMfa: (mfaToken: string, code: string) =>
+    api.post<LoginResult>('/auth/mfa', { mfaToken, code }),
+
+  me: () =>
+    api.get<{
+      accountId: string;
+      practitionerId: string | null;
+      personId: string | null;
+      mfaSatisfied: boolean;
+      checkedInAt: string | null;
+    }>('/auth/me'),
+
+  logout: () => api.post<{ revoked: number }>('/auth/logout'),
+};
 
 export const nhp = {
   searchPatients: (identifier: string) =>

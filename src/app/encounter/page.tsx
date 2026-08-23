@@ -23,7 +23,8 @@ import {
  * in sixteen keystrokes, without touching the mouse.
  */
 
-import { nhp, ApiError, type PatientSummary } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { nhp, hasSession, ApiError, type PatientSummary } from '@/lib/api';
 
 /** The demo patient's National ID, from `pnpm seed:demo` in the backend. */
 const DEMO_IDENTIFIER = '39104882';
@@ -49,6 +50,7 @@ const STEPS = [
 ] as const;
 
 export default function EncounterPage() {
+  const router = useRouter();
   const [patient, setPatient] = useState<PatientSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [diagnosisIndex, setDiagnosisIndex] = useState<DiagnosisTerm[]>([]);
@@ -72,6 +74,15 @@ export default function EncounterPage() {
   // resolution ladder must never wait on the network — but everything about
   // the patient comes from the API, through the check-in gate.
   useEffect(() => {
+    // The token lives in memory, so a reload means signing in again. That is
+    // deliberate until the API sets an httpOnly refresh cookie — a token in
+    // localStorage is readable by any injected script, and this one reaches
+    // patient data.
+    if (!hasSession()) {
+      router.replace('/login');
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       try {
@@ -93,7 +104,7 @@ export default function EncounterPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   const queryDiagnoses = useCallback(
     (q: string): SearchResult[] =>
