@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { auth, setAccessToken, ApiError } from '@/lib/api';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { auth, setSession, ApiError } from '@/lib/api';
 
 /**
  * Sign in.
@@ -16,8 +16,11 @@ import { auth, setAccessToken, ApiError } from '@/lib/api';
  * a wrong password, so this form cannot be used to discover who holds an
  * account.
  */
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  // Set when a restored session needs its second factor re-presented.
+  const reason = params.get('reason');
   const [stage, setStage] = useState<'CREDENTIALS' | 'MFA'>('CREDENTIALS');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -36,7 +39,7 @@ export default function LoginPage() {
         setMfaToken(result.mfaToken!);
         setStage('MFA');
       } else {
-        setAccessToken(result.accessToken!);
+        setSession(result.accessToken!, result.csrfToken ?? null);
         router.push('/encounter');
       }
     } catch (err) {
@@ -52,7 +55,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       const result = await auth.completeMfa(mfaToken, code);
-      setAccessToken(result.accessToken!);
+      setSession(result.accessToken!, result.csrfToken ?? null);
       router.push('/encounter');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not reach the server');
@@ -75,6 +78,13 @@ export default function LoginPage() {
         <h1 className="mb-6 font-serif text-3xl font-medium tracking-tight">
           National Health Portal
         </h1>
+
+        {reason === 'mfa' && (
+          <p className="mb-4 rounded-md border border-caution/40 bg-caution-soft px-3 py-2.5 text-sm text-caution">
+            Your session was restored, but clinical access needs your second
+            factor again. Signing in confirms it is still you at this device.
+          </p>
+        )}
 
         <div className="rounded-lg border border-rule bg-surface p-6">
           {stage === 'CREDENTIALS' ? (
@@ -189,5 +199,13 @@ export default function LoginPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

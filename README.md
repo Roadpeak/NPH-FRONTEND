@@ -99,8 +99,16 @@ then a bearer token. `/encounter` redirects to `/login` without a session.
 
 The access token is held **in memory, not localStorage** — a token in
 localStorage is readable by any injected script, and this one reaches
-patient data. A reload therefore means signing in again, until the API sets
-an httpOnly refresh cookie.
+patient data.
+
+Sessions survive a reload via an **httpOnly refresh cookie** the page cannot
+read. On load, `restoreSession()` asks the API to rotate it, echoing a
+double-submit CSRF token from a separate readable cookie.
+
+A restored session is authenticated but **not** MFA-satisfied — a 30-day
+cookie must not silently confer a second factor — so a clinician returning
+after a reload is sent to `/login?reason=mfa` with an explanation rather
+than a bare error.
 
 ### If the banner cannot load
 

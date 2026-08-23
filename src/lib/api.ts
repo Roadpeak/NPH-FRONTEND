@@ -36,7 +36,14 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
  * an httpOnly cookie once the API sets one.
  */
 let accessToken: string | null = null;
+let csrfToken: string | null = null;
 
+export function setSession(token: string | null, csrf?: string | null) {
+  accessToken = token;
+  if (csrf !== undefined) csrfToken = csrf;
+}
+
+/** Kept for callers that only have the access token. */
 export function setAccessToken(token: string | null) {
   accessToken = token;
 }
@@ -45,14 +52,54 @@ export function hasSession(): boolean {
   return accessToken !== null;
 }
 
+/**
+ * Restores a session from the httpOnly refresh cookie.
+ *
+ * The cookie is unreadable to this code — we simply ask the API to rotate
+ * it. If the browser holds a valid one, we get a fresh access token back;
+ * if not, the call fails and the caller sends the user to sign in.
+ *
+ * The CSRF token is read from a deliberately readable cookie and echoed in
+ * a header, which is the half a cross-origin page cannot forge.
+ */
+export async function restoreSession(): Promise<boolean> {
+  const csrf = document.cookie
+    .split('; ')
+    .find((c) => c.startsWith('nhp_csrf='))
+    ?.split('=')[1];
+
+  if (!csrf) return false;
+
+  try {
+    const result = await api.post<{ accessToken: string; csrfToken: string }>(
+      '/auth/refresh',
+      undefined,
+      { headers: { 'x-csrf-token': csrf } },
+    );
+    setSession(result.accessToken, result.csrfToken);
+    return true;
+  } catch (err) {
+    // A failed restore is normal (no cookie, expired, revoked), but a
+    // silent catch hides real bugs — so it is visible in development.
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[nhp] session restore failed:', err);
+    }
+    setSession(null, null);
+    return false;
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, idempotencyKey, headers, ...rest } = options;
 
   const response = await fetch(`${BASE_URL}${path}`, {
     ...rest,
     headers: {
-      'Content-Type': 'application/json',
+      // Only when there IS a body: declaring JSON and sending nothing is
+      // rejected outright by Fastify, which cost an hour to find once.
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
       ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
       ...headers,
     },
@@ -169,7 +216,8 @@ export interface PrescribingCheck {
 export interface LoginResult {
   status: 'AUTHENTICATED' | 'MFA_REQUIRED';
   accessToken?: string;
-  refreshToken?: string;
+  /** The refresh token is NOT here — it lives in an httpOnly cookie. */
+  csrfToken?: string;
   mfaToken?: string;
   mfaMode?: 'SMS' | 'TOTP';
 }

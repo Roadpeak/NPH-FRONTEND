@@ -24,7 +24,7 @@ import {
  */
 
 import { useRouter } from 'next/navigation';
-import { nhp, hasSession, ApiError, type PatientSummary } from '@/lib/api';
+import { nhp, hasSession, restoreSession, ApiError, type PatientSummary } from '@/lib/api';
 
 /** The demo patient's National ID, from `pnpm seed:demo` in the backend. */
 const DEMO_IDENTIFIER = '39104882';
@@ -74,24 +74,33 @@ export default function EncounterPage() {
   // resolution ladder must never wait on the network — but everything about
   // the patient comes from the API, through the check-in gate.
   useEffect(() => {
-    // The token lives in memory, so a reload means signing in again. That is
-    // deliberate until the API sets an httpOnly refresh cookie — a token in
-    // localStorage is readable by any injected script, and this one reaches
-    // patient data.
-    if (!hasSession()) {
-      router.replace('/login');
-      return;
-    }
-
     let cancelled = false;
     (async () => {
       try {
+        // The access token lives in memory and is lost on reload. The
+        // refresh token lives in an httpOnly cookie this code cannot read,
+        // so we ask the API to rotate it rather than reading it ourselves.
+        if (!hasSession() && !(await restoreSession())) {
+          router.replace('/login');
+          return;
+        }
+        if (cancelled) return;
+
         const found = await nhp.searchPatients(DEMO_IDENTIFIER);
         if (!found.match) throw new Error('Demo patient not found');
         const summary = await nhp.patientSummary(found.match.id);
         if (!cancelled) setPatient(summary);
       } catch (err) {
         if (cancelled) return;
+
+        // A restored session is authenticated but NOT MFA-satisfied — a
+        // refresh cookie must never silently confer a second factor. Send
+        // the clinician to re-present it rather than stranding them.
+        if (err instanceof ApiError && (err.code === 'MFA_REQUIRED' || err.code === 'NO_SESSION')) {
+          router.replace('/login?reason=mfa');
+          return;
+        }
+
         setLoadError(
           err instanceof ApiError
             ? `${err.message} (${err.code})`
