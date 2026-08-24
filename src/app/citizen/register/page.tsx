@@ -54,6 +54,7 @@ export default function CitizenRegisterPage() {
         countyId: person.countyId,
         subcountyId: person.subcountyId,
         password: person.password,
+        photo: person.photo ?? undefined,
       });
       setDone({ nhpId: result.nhpId });
     } catch (err) {

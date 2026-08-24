@@ -87,6 +87,7 @@ export default function WorkerRegisterPage() {
         countyId: person.countyId,
         subcountyId: person.subcountyId,
         password: person.password,
+        photo: person.photo ?? undefined,
         cadre,
         licenceNumber,
         regulator,

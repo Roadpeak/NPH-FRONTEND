@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { SafetyBanner } from '@/components/SafetyBanner';
+import { PatientHeader } from '@/components/PatientHeader';
 import { CodedSearch, type SearchResult } from '@/components/CodedSearch';
 import {
   loadDiagnosisIndex,
@@ -24,7 +25,14 @@ import {
  */
 
 import { useRouter } from 'next/navigation';
-import { nhp, hasSession, restoreSession, ApiError, type PatientSummary } from '@/lib/api';
+import {
+  nhp,
+  photo,
+  hasSession,
+  restoreSession,
+  ApiError,
+  type PatientSummary,
+} from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 
 /** The demo patient's National ID, from `pnpm seed:demo` in the backend. */
@@ -54,6 +62,9 @@ export default function EncounterPage() {
   const router = useRouter();
   const [patient, setPatient] = useState<PatientSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Fetched separately: a photo that fails to load must never delay or
+  // block the allergy banner.
+  const [patientPhoto, setPatientPhoto] = useState<string | null>(null);
   const [diagnosisIndex, setDiagnosisIndex] = useState<DiagnosisTerm[]>([]);
   const [medicationIndex, setMedicationIndex] = useState<MedicationTerm[]>([]);
   const [step, setStep] = useState(1);
@@ -91,6 +102,14 @@ export default function EncounterPage() {
         if (!found.match) throw new Error('Demo patient not found');
         const summary = await nhp.patientSummary(found.match.id);
         if (!cancelled) setPatient(summary);
+
+        // Deliberately after the summary and separately caught: a photo is
+        // a convenience, and a failure to load one must never delay or
+        // block the allergy banner.
+        photo
+          .ofPatient(found.match.displayNumber)
+          .then((p) => !cancelled && setPatientPhoto(p.photo))
+          .catch(() => !cancelled && setPatientPhoto(null));
       } catch (err) {
         if (cancelled) return;
 
@@ -179,34 +198,37 @@ export default function EncounterPage() {
   return (
     <div className="min-h-screen bg-surface-sunken">
       {/* --- patient identity --- */}
-      <header className="border-b border-rule bg-surface-alt">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold">
-              {patient
-                ? `${patient.person.givenName} ${patient.person.familyName}`
-                : 'Loading patient…'}
-            </h1>
-            <p className="truncate font-mono text-micro text-ink-faint">
-              {patient
-                ? `${patient.person.displayNumber} · ${patient.person.sexAtBirth[0]} · ` +
-                  `${patient.person.age}y` +
-                  (patient.person.bloodGroup
-                    ? ` · Blood group ${patient.person.bloodGroup.replace('_POS', '+').replace('_NEG', '−')}`
-                    : '')
-                : 'from NHP-BACKEND'}
-            </p>
+      {patient ? (
+        <PatientHeader
+          displayNumber={patient.person.displayNumber}
+          givenName={patient.person.givenName}
+          familyName={patient.person.familyName}
+          age={patient.person.age}
+          sexAtBirth={patient.person.sexAtBirth}
+          bloodGroup={patient.person.bloodGroup}
+          photo={patientPhoto}
+          allergies={patient.allergies}
+          medications={patient.medications}
+          chronicConditions={patient.chronicConditions}
+          actions={
+            <>
+              <span className="chip chip-good">Consented</span>
+              {/* Without this, an honest mis-search is indistinguishable
+                  from browsing in the audit log. */}
+              <button className="rounded border border-rule px-3 py-1.5 text-sm text-ink-soft hover:bg-surface">
+                Not my patient
+              </button>
+            </>
+          }
+        />
+      ) : (
+        <header className="border-b border-rule bg-surface">
+          <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+            <p className="text-base font-semibold">Loading patient…</p>
+            <p className="font-mono text-micro text-ink-faint">from NHP-BACKEND</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="chip chip-good">Consented</span>
-            {/* Without this, an honest mis-search is indistinguishable from
-                browsing in the audit log. */}
-            <button className="rounded border border-rule px-3 py-1.5 text-sm text-ink-soft hover:bg-surface">
-              Not my patient
-            </button>
-          </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {loadError ? (
         /* If the banner cannot load, say so loudly. Showing an empty

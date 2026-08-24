@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { geo, type CountyOption, type SubcountyOption } from '@/lib/api';
 import { Field, inputClass } from './PortalShell';
+import { PhotoField } from './PhotoField';
 
 /**
  * The identity a person registers with.
@@ -30,6 +31,8 @@ export interface PersonFormState {
   subcountyId: string;
   password: string;
   confirmPassword: string;
+  /** Base64 data URL, or null. Optional by design. */
+  photo: string | null;
 }
 
 export const emptyPerson: PersonFormState = {
@@ -45,6 +48,7 @@ export const emptyPerson: PersonFormState = {
   subcountyId: '',
   password: '',
   confirmPassword: '',
+  photo: null,
 };
 
 /** The server's floor. Stated here so the form can say so before submitting. */
@@ -100,6 +104,8 @@ export function PersonFields({
 
   return (
     <>
+      <PhotoField value={value.photo} onChange={(photo) => set({ photo })} />
+
       <div className="grid gap-x-4 sm:grid-cols-2">
         <Field id="givenName" label="First name">
           <input

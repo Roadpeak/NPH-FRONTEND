@@ -238,6 +238,8 @@ export interface RegisterPersonInput {
   countyId: string;
   subcountyId: string;
   password: string;
+  /** Optional passport photo, as a base64 data URL. */
+  photo?: string;
 }
 
 export interface CountyOption {
@@ -520,6 +522,15 @@ export const admin = {
 };
 
 /** Open reference data — a registration form needs these before sign-in. */
+/** A person's passport photograph, behind the same auth as their record. */
+export const photo = {
+  ofPatient: (nhpId: string) =>
+    api.get<{ photo: string | null }>(`/persons/${nhpId}/photo`),
+  mine: () => api.get<{ photo: string | null }>('/persons/me/photo'),
+  setMine: (dataUrl: string) =>
+    api.post<{ updated: boolean }>('/persons/me/photo', { photo: dataUrl }),
+};
+
 export const geo = {
   counties: () => api.get<CountyOption[]>('/geo/counties'),
   subcounties: (countyId: string) =>
