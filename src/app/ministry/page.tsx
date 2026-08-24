@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   ministry,
   hasSession,
@@ -122,7 +123,12 @@ export default function MinistryPage() {
           </div>
           {/* The role is stated, because what this screen CANNOT do is the
               point: aggregates only, no path to an individual record. */}
-          <span className="chip chip-good">DE-IDENTIFIED AGGREGATES</span>
+          <div className="flex items-center gap-3">
+            <Link href="/ministry/admin" className="text-sm font-semibold text-gov underline">
+              Administration
+            </Link>
+            <span className="chip chip-good">DE-IDENTIFIED AGGREGATES</span>
+          </div>
         </div>
       </header>
 

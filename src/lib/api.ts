@@ -297,6 +297,112 @@ export const register = {
     }>('/facilities/register', input),
 };
 
+export interface AdminOverview {
+  role: string | null;
+  geoScope: string | null;
+  /** null means "not your role" — render nothing, not a zero. */
+  pendingFacilities: number | null;
+  activeFacilities: number | null;
+  practitioners: number | null;
+  pendingBreakGlassReviews: number | null;
+  licencesExpiringSoon: number | null;
+}
+
+export interface PendingFacility {
+  id: string;
+  mflCode: string;
+  name: string;
+  kephLevel: number;
+  ownership: string;
+  countyId: string;
+  subcountyId: string;
+  locality: string | null;
+  createdAt: string;
+}
+
+export interface FacilityRow {
+  id: string;
+  mflCode: string;
+  name: string;
+  kephLevel: number;
+  ownership: string;
+  countyId: string;
+  registrationStatus: string;
+}
+
+export interface ExpiringLicence {
+  id: string;
+  practitionerId: string;
+  regulator: string;
+  licenceNumber: string;
+  expiresOn: string;
+}
+
+export interface PendingBreakGlass {
+  id: string;
+  personId: string;
+  practitionerId: string;
+  facilityId: string;
+  justification: string;
+  openedAt: string;
+  reviewStatus: string;
+  patientNotifiedAt: string | null;
+}
+
+/**
+ * The administrative surface.
+ *
+ * Each call is gated server-side by Ministry role. This client mirrors that
+ * only so the UI knows what not to bother rendering — the authorisation
+ * itself is the server's, and a screen that hid a section would still be
+ * refused if it called anyway.
+ */
+export const admin = {
+  overview: () => api.get<AdminOverview>('/admin/overview'),
+
+  pendingFacilities: () => api.get<PendingFacility[]>('/admin/facilities/pending'),
+
+  facilities: (params?: { status?: string; countyId?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.countyId) q.set('countyId', params.countyId);
+    const query = q.toString();
+    return api.get<FacilityRow[]>(`/admin/facilities${query ? `?${query}` : ''}`);
+  },
+
+  approveFacility: (facilityId: string) =>
+    api.post<{ id: string; registrationStatus: string }>(
+      `/admin/facilities/${facilityId}/approve`,
+    ),
+
+  postStaff: (body: { practitionerId: string; facilityId: string; role?: string }) =>
+    api.post<{ id: string; status: string }>('/admin/postings', body),
+
+  endPosting: (affiliationId: string) =>
+    api.post<{ id: string; status: string }>(`/admin/postings/${affiliationId}/end`),
+
+  expiringLicences: (days = 30) =>
+    api.get<ExpiringLicence[]>(`/admin/licences/expiring?days=${days}`),
+
+  pendingBreakGlass: () => api.get<PendingBreakGlass[]>('/admin/break-glass/pending'),
+
+  reviewBreakGlass: (breakGlassId: string, outcome: string, note?: string) =>
+    api.post<{ id: string; reviewStatus: string }>(
+      `/admin/break-glass/${breakGlassId}/review`,
+      { outcome, note },
+    ),
+
+  breakGlassRates: () =>
+    api.get<Array<{ facilityId: string; events: number; encounters: number; ratePercent: number }>>(
+      '/admin/break-glass/rates',
+    ),
+
+  anomalies: () =>
+    api.get<Array<{ actorId: string; attempts: number; denials: number; denialRate: number }>>(
+      '/admin/anomalies',
+    ),
+};
+
 /** Open reference data — a registration form needs these before sign-in. */
 export const geo = {
   counties: () => api.get<CountyOption[]>('/geo/counties'),
@@ -324,6 +430,10 @@ export const auth = {
       // Ministry analyst fell through the sign-in routing to the citizen
       // screen and was met with "this endpoint is for citizen accounts".
       ministryUserId: string | null;
+      /** Which Ministry sections this account may open. */
+      ministryRole: string | null;
+      geoScope: string | null;
+      scopeCountyId: string | null;
       personId: string | null;
       mfaSatisfied: boolean;
       checkedInAt: string | null;
