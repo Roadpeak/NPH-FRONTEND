@@ -6,7 +6,11 @@
     "dev": "next dev --turbopack -p 3100",
     "build": "next build --turbopack",
     "start": "next start -p 3100",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "tsc --noEmit && vitest run --exclude 'test/contract.test.ts'",
+    "test:watch": "vitest",
+    "test:contract": "CONTRACT_REQUIRED=1 vitest run test/contract.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "15.5.23",
@@ -15,14 +19,20 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.1.0",
     "autoprefixer": "^10.5.4",
     "eslint": "^9",
     "eslint-config-next": "15.5.23",
+    "jsdom": "^30.0.1",
     "postcss": "^8.5.26",
     "tailwindcss": "^3.4.19",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   }
 }
