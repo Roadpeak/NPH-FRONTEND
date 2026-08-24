@@ -48,10 +48,10 @@ export default function Landing() {
 
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            href="/citizen/login"
+            href="/citizen"
             className="rounded-md bg-gov px-5 py-2.5 font-semibold text-surface"
           >
-            Sign in
+            Enter the citizen portal
           </Link>
           <Link href="/citizen/register" className="font-semibold text-gov underline">
             Create your record
@@ -64,19 +64,19 @@ export default function Landing() {
       <h2 className="eyebrow mb-3">Staff portals</h2>
       <ul className="grid gap-2 text-sm sm:grid-cols-3">
         <li className="rounded-md border border-rule bg-surface-alt px-4 py-3">
-          <Link href="/worker/login" className="font-semibold text-gov">
+          <Link href="/worker" className="font-semibold text-gov">
             Health workers
           </Link>
           <p className="font-mono text-micro text-ink-faint">/worker</p>
         </li>
         <li className="rounded-md border border-rule bg-surface-alt px-4 py-3">
-          <Link href="/facility/login" className="font-semibold text-gov">
+          <Link href="/facility" className="font-semibold text-gov">
             Health facilities
           </Link>
           <p className="font-mono text-micro text-ink-faint">/facility</p>
         </li>
         <li className="rounded-md border border-rule bg-surface-alt px-4 py-3">
-          <Link href="/ministry/login" className="font-semibold text-gov">
+          <Link href="/ministry/welcome" className="font-semibold text-gov">
             Ministry of Health
           </Link>
           <p className="font-mono text-micro text-ink-faint">/ministry</p>

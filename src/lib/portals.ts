@@ -23,6 +23,12 @@ export interface Portal {
   /** What this audience calls itself, not what the system calls them. */
   name: string;
   nameSw: string;
+  /**
+   * The name set large on the welcome screen, under "Welcome to NHP".
+   * Written as a portal name — "Citizen Portal" — because that is what the
+   * person arriving needs to recognise in one glance.
+   */
+  welcomeName: string;
   /** One line, for the chooser. Says what you can do, not what you are. */
   blurb: string;
   blurbSw: string;
@@ -38,6 +44,7 @@ export interface Portal {
 export const PORTALS: Record<PortalId, Portal> = {
   citizen: {
     id: 'citizen',
+    welcomeName: 'Citizen Portal',
     name: 'Citizens',
     nameSw: 'Wananchi',
     blurb: 'See your health record, your visits, and who has opened it.',
@@ -50,6 +57,7 @@ export const PORTALS: Record<PortalId, Portal> = {
   },
   worker: {
     id: 'worker',
+    welcomeName: 'Health Workers Portal',
     name: 'Health workers',
     nameSw: 'Wahudumu wa afya',
     blurb: 'Record encounters, prescribe, and read the patients you treat.',
@@ -62,6 +70,7 @@ export const PORTALS: Record<PortalId, Portal> = {
   },
   facility: {
     id: 'facility',
+    welcomeName: 'Health Facility Portal',
     name: 'Health facilities',
     nameSw: 'Vituo vya afya',
     blurb: 'Register a facility, manage its staff and its services.',
@@ -74,6 +83,7 @@ export const PORTALS: Record<PortalId, Portal> = {
   },
   ministry: {
     id: 'ministry',
+    welcomeName: 'Ministry Portal',
     name: 'Ministry of Health',
     nameSw: 'Wizara ya Afya',
     blurb: 'National statistics, facility approvals and staff postings.',

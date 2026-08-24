@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 /**
  * The frame every portal page sits in.
  *
@@ -34,25 +36,54 @@ export function PortalShell({
   wide?: boolean;
 }) {
   return (
-    <main className="flex min-h-screen items-start justify-center px-4 py-10 sm:py-14">
-      <div className={wide ? 'w-full max-w-2xl' : 'w-full max-w-md'}>
-        <FlagBar />
+    <main className="flex min-h-screen items-center justify-center bg-surface-sunken px-4 py-10 sm:py-14">
+      <div className={wide ? 'w-full max-w-2xl' : 'w-full max-w-lg'}>
+        {/*
+          A raised white card on a quiet ground, the way portal.sha.go.ke
+          presents its sign-in: identity at the top of the card, the form
+          beneath it, help outside. Generous radius and a very soft shadow —
+          the card should sit on the page, not cut into it.
+        */}
+        <div className="rounded-2xl border border-rule bg-surface p-6 shadow-[0_0_23px_0_rgba(0,0,0,0.04)] sm:p-10">
+          <div className="mb-6 flex items-center gap-3">
+            <Image
+              src="/img/coat-of-arms.png"
+              alt="Coat of Arms of the Republic of Kenya"
+              width={44}
+              height={44}
+              className="h-auto w-auto"
+              style={{ maxHeight: 44 }}
+              priority
+            />
+            <span className="flex h-10 w-1 flex-col overflow-hidden rounded-sm" aria-hidden="true">
+              <span className="flex-1 bg-ink" />
+              <span className="flex-1 bg-critical" />
+              <span className="flex-1 bg-good" />
+            </span>
+            <span>
+              <span className="block font-serif text-lg font-medium leading-tight tracking-tight">
+                National Health Portal
+              </span>
+              <span className="block font-mono text-micro uppercase tracking-wider text-ink-faint">
+                {portalName}
+              </span>
+            </span>
+          </div>
 
-        <p className="eyebrow mb-1 mt-6">Republic of Kenya · {portalName}</p>
-        <h1 className="mb-6 font-serif text-3xl font-medium tracking-tight">
-          National Health Portal
-        </h1>
+          {intro}
 
-        {intro}
-
-        <div className="rounded-lg border border-rule bg-surface p-6">
-          <h2 className="mb-4 text-base font-semibold">{title}</h2>
+          <h1 className="mb-5 font-serif text-2xl font-medium leading-snug tracking-tight">
+            {title}
+          </h1>
           {children}
         </div>
 
-        <p className="mt-4 text-micro text-ink-faint">
-          Every sign-in is recorded. Access to a patient record is logged and
-          shown to that patient.
+        <p className="mt-4 text-center text-micro text-ink-faint">
+          Contact <a href="tel:147" className="font-semibold text-gov">147</a> or{' '}
+          <a href="mailto:help@nhp.health.go.ke" className="font-semibold text-gov">
+            help@nhp.health.go.ke
+          </a>{' '}
+          for help. Every sign-in is recorded.
         </p>
       </div>
     </main>
