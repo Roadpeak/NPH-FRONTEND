@@ -12,7 +12,11 @@ import { auth, setSession, ApiError } from '@/lib/api';
  */
 async function landingFor(): Promise<string> {
   const me = await auth.me();
-  return me.practitionerId ? '/encounter' : '/me';
+  if (me.practitionerId) return '/encounter';
+  // Ministry before citizen: an analyst account has no personId, so the
+  // citizen screen would refuse it outright.
+  if (me.ministryUserId) return '/ministry';
+  return '/me';
 }
 
 /**

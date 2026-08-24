@@ -240,6 +240,10 @@ export const auth = {
     api.get<{
       accountId: string;
       practitionerId: string | null;
+      // The server has always returned this; omitting it here meant a
+      // Ministry analyst fell through the sign-in routing to the citizen
+      // screen and was met with "this endpoint is for citizen accounts".
+      ministryUserId: string | null;
       personId: string | null;
       mfaSatisfied: boolean;
       checkedInAt: string | null;
@@ -345,6 +349,82 @@ export const citizen = {
 
   dispute: (encounterId: string, note: string) =>
     api.post<unknown>('/persons/me/disputes', { encounterId, note }),
+};
+
+export interface BurdenRow {
+  countyId: string;
+  cases: number;
+  newCases: number;
+  suppressedCells: number;
+  facilitiesReporting: number;
+  facilitiesExpected: number;
+  completenessPercent: number;
+}
+
+export interface CountyRef {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface Provenance {
+  periodFrom: string;
+  periodTo: string;
+  facilitiesReporting: number;
+  facilitiesRegistered: number;
+  completenessPercent: number;
+  lastRollupDate: string | null;
+  suppressionThreshold: number;
+  denominatorNote: string;
+  suppressionNote: string;
+}
+
+export const ministry = {
+  counties: () => api.get<CountyRef[]>('/analytics/counties'),
+
+  burden: (icd11Code?: string) =>
+    api.get<BurdenRow[]>(
+      `/analytics/burden${icd11Code ? `?icd11Code=${icd11Code}` : ''}`,
+    ),
+
+  subcounty: (countyId: string, icd11Code?: string) =>
+    api.get<Array<{ subcountyId: string; cases: number; suppressed: number }>>(
+      `/analytics/burden/${countyId}${icd11Code ? `?icd11Code=${icd11Code}` : ''}`,
+    ),
+
+  referralClosure: () =>
+    api.get<
+      Array<{
+        countyId: string;
+        issued: number;
+        arrived: number;
+        completed: number;
+        declined: number;
+        arrivalRatePercent: number;
+        closureRatePercent: number;
+      }>
+    >('/analytics/referral-closure'),
+
+  workforce: () =>
+    api.get<Array<{ countyId: string; activeClinicians: number }>>(
+      '/analytics/workforce',
+    ),
+
+  careGaps: () =>
+    api.get<Array<{ icd11Code: string; lostToFollowUp: number }>>('/analytics/care-gaps'),
+
+  surveillance: () =>
+    api.get<
+      Array<{
+        icd11Code: string;
+        title: string;
+        countyId: string;
+        cases: number;
+        facilitiesInvolved: number;
+      }>
+    >('/analytics/surveillance'),
+
+  provenance: () => api.get<Provenance>('/analytics/provenance'),
 };
 
 export const nhp = {
