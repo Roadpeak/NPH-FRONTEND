@@ -28,10 +28,12 @@ import { useRouter } from 'next/navigation';
 import {
   nhp,
   photo,
+  auth,
   hasSession,
   restoreSession,
   ApiError,
   type PatientSummary,
+  type CheckInSession,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 
@@ -65,6 +67,10 @@ export default function EncounterPage() {
   // Fetched separately: a photo that fails to load must never delay or
   // block the allergy banner.
   const [patientPhoto, setPatientPhoto] = useState<string | null>(null);
+  // The signed-in clinician and their check-in, both from the server. The
+  // footer used to state these as fixed demo text.
+  const [session, setSession] = useState<CheckInSession | null>(null);
+  const [me, setMe] = useState<{ name: string; licenceNumber: string | null } | null>(null);
   const [diagnosisIndex, setDiagnosisIndex] = useState<DiagnosisTerm[]>([]);
   const [medicationIndex, setMedicationIndex] = useState<MedicationTerm[]>([]);
   const [step, setStep] = useState(1);
@@ -102,6 +108,26 @@ export default function EncounterPage() {
         if (!found.match) throw new Error('Demo patient not found');
         const summary = await nhp.patientSummary(found.match.id);
         if (!cancelled) setPatient(summary);
+
+        // Who is signed in, and whether they are checked in. Separately
+        // caught: neither may delay or block the allergy banner.
+        auth
+          .me()
+          .then((m) => {
+            if (cancelled) return;
+            setMe({
+              name: m.displayName
+                ? `${m.cadre === 'DOCTOR' || m.cadre === 'DENTIST' ? 'Dr ' : ''}${m.displayName}`
+                : 'Unknown clinician',
+              licenceNumber: m.licenceNumber,
+            });
+          })
+          .catch(() => !cancelled && setMe(null));
+
+        nhp
+          .currentSession()
+          .then((cs) => !cancelled && setSession(cs))
+          .catch(() => !cancelled && setSession(null));
 
         // Deliberately after the summary and separately caught: a photo is
         // a convenience, and a failure to load one must never delay or
@@ -382,19 +408,50 @@ export default function EncounterPage() {
         </div>
       </main>
 
-      {/* --- attribution footer --- */}
-      <footer className="border-t border-rule bg-surface-alt">
+      {/*
+        The attribution footer.
+
+        Read from the LIVE session, never hardcoded: a clinician who is not
+        checked in seeing "Checked in · Kisumu County Referral" would be
+        told they can write when the server will refuse them — and would
+        discover it at a patient's bedside.
+      */}
+      <footer
+        className={`border-t ${
+          session ? 'border-rule bg-surface-alt' : 'border-caution/40 bg-caution-soft'
+        }`}
+      >
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
           <div>
             <p className="text-sm text-ink-soft">
-              <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-good" />
-              Dr Amina Wanjiru · KMPDC/12345
+              <span
+                className={`mr-1.5 inline-block h-2 w-2 rounded-full ${
+                  session ? 'bg-good' : 'bg-caution'
+                }`}
+              />
+              {me
+                ? `${me.name}${me.licenceNumber ? ` · ${me.licenceNumber}` : ''}`
+                : 'Loading…'}
             </p>
-            <p className="font-mono text-micro text-ink-faint">
-              Checked in · Kisumu County Referral · this view has been logged
-            </p>
+            {session ? (
+              <p className="font-mono text-micro text-ink-faint">
+                Checked in · {session.facilityName} · this view has been logged
+              </p>
+            ) : (
+              /* The gate, stated plainly. The server refuses a write without
+                 an open check-in; saying so here is the difference between
+                 knowing before a consultation and finding out during one. */
+              <p className="font-mono text-micro font-semibold text-caution">
+                Not checked in · you cannot record clinical data until you
+                check in at a facility
+              </p>
+            )}
           </div>
-          <p className="font-mono text-micro text-ink-faint">session expires 00:12</p>
+          {session && (
+            <p className="font-mono text-micro text-ink-faint">
+              session expires in {session.minutesRemaining} min
+            </p>
+          )}
         </div>
       </footer>
 

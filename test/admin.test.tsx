@@ -85,6 +85,9 @@ function overviewFor(role: string) {
 function signedInAs(role: string) {
   authStub.me.mockResolvedValue({
     accountId: 'a1',
+    displayName: null,
+    cadre: null,
+    licenceNumber: null,
     practitionerId: null,
     ministryUserId: 'm1',
     ministryRole: role,
@@ -390,6 +393,9 @@ describe('access to the screen itself', () => {
   it('sends a non-Ministry account back to the Ministry sign-in', async () => {
     authStub.me.mockResolvedValue({
       accountId: 'a1',
+      displayName: 'Amina Wanjiru',
+      cadre: 'DOCTOR',
+      licenceNumber: 'KMPDC/2026/0001',
       practitionerId: 'p1',
       ministryUserId: null,
       ministryRole: null,

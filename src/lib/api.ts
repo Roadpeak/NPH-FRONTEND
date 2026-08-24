@@ -594,6 +594,10 @@ export const auth = {
   me: () =>
     api.get<{
       accountId: string;
+      /** Who this clinician is, for the attribution line. */
+      displayName: string | null;
+      cadre: string | null;
+      licenceNumber: string | null;
       practitionerId: string | null;
       // The server has always returned this; omitting it here meant a
       // Ministry analyst fell through the sign-in routing to the citizen

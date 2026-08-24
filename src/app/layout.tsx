@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Public_Sans, Newsreader, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
+import { GovBanner } from '@/components/GovBanner';
 
 /**
  * Public Sans — the US federal design system face. Built for government
@@ -52,7 +53,13 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      <body>
+        {/* Above everything, on every page: a phishing site can copy a
+            layout, and a constant mark of provenance is what gives someone
+            something to look for. */}
+        <GovBanner />
+        {children}
+      </body>
     </html>
   );
 }
