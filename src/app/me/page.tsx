@@ -102,7 +102,7 @@ export default function CitizenPage() {
   const ui = summary?.ui ?? {};
 
   return (
-    <div className="min-h-screen bg-surface-sunken pb-20">
+    <div className="min-h-screen bg-surface-sunken">
       <CitizenHeader
         name={summary?.name ?? '…'}
         displayNumber={summary?.displayNumber ?? ''}
@@ -130,6 +130,30 @@ export default function CitizenPage() {
           </button>
         }
       />
+
+      {/*
+        Directly under the identity strip, the way the clinician screen
+        carries its tab row. It scrolls away with the page rather than
+        sitting fixed: a bar pinned to the bottom of a mid-range Android
+        browser competes with the system navigation bar and loses.
+      */}
+      <nav className="border-b border-rule bg-surface-alt">
+        <div className="mx-auto flex max-w-4xl overflow-x-auto px-4 sm:px-6">
+          {(['RECORD', 'FAMILY', 'PROFILE', 'ACCESS'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`shrink-0 border-b-2 px-4 py-3 text-center font-mono text-micro font-semibold ${
+                tab === t
+                  ? 'border-gov text-gov'
+                  : 'border-transparent text-ink-faint hover:text-ink-soft'
+              }`}
+            >
+              {TAB_LABELS[lang][t]}
+            </button>
+          ))}
+        </div>
+      </nav>
 
       <main className="mx-auto max-w-4xl px-4 py-5 sm:px-6">
         {error && (
@@ -321,23 +345,6 @@ export default function CitizenPage() {
         )}
       </main>
 
-      {/* Four tabs, no more — Family and Find care land with their screens. */}
-      <nav className="fixed inset-x-0 bottom-0 border-t border-rule bg-surface-alt">
-        <div className="mx-auto flex max-w-4xl">
-          {(['RECORD', 'FAMILY', 'PROFILE', 'ACCESS'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 px-3 py-3 text-center font-mono text-micro font-semibold ${
-                tab === t ? 'text-gov' : 'text-ink-faint'
-              }`}
-            >
-              {TAB_LABELS[lang][t]}
-              {tab === t && <span className="mx-auto mt-1 block h-0.5 w-8 bg-gov" />}
-            </button>
-          ))}
-        </div>
-      </nav>
     </div>
   );
 }
