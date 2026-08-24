@@ -27,10 +27,12 @@ const authStub = { me: vi.fn<() => Promise<any>>() };
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const adminStub = {
   overview: vi.fn<() => Promise<any>>(),
+  searchPractitioners: vi.fn<(q: string) => Promise<any[]>>(async () => []),
+  searchFacilities: vi.fn<(q: string) => Promise<any[]>>(async () => []),
   pendingFacilities: vi.fn<() => Promise<any[]>>(async () => []),
   facilities: vi.fn<() => Promise<any[]>>(async () => []),
   approveFacility: vi.fn<(id: string) => Promise<any>>(),
-  postStaff: vi.fn(),
+  postStaff: vi.fn<(b: any) => Promise<any>>(),
   endPosting: vi.fn(),
   expiringLicences: vi.fn<(days?: number) => Promise<any[]>>(async () => []),
   pendingBreakGlass: vi.fn<() => Promise<any[]>>(async () => []),
@@ -402,5 +404,194 @@ describe('when a section fails to load', () => {
     // a failure, and the one an administrator would act on.
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.queryByText(/no licences lapse/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('staff postings', () => {
+  /**
+   * The rule from the brief, at the point someone is about to break it:
+   * the Ministry posts staff to PUBLIC facilities, private facilities
+   * engage their own. The server refuses the wrong direction, so the job of
+   * this screen is to say so BEFORE the attempt rather than surfacing a
+   * refusal after a registrar has chosen.
+   */
+  const nurse = {
+    practitionerId: 'pr1',
+    name: 'Amina Wanjiru',
+    cadre: 'NURSE',
+    status: 'ACTIVE',
+    licences: [
+      { regulator: 'NCK', licenceNumber: 'NCK/2026/0038', status: 'ACTIVE', expiresOn: '2027-01-01' },
+    ],
+    affiliations: [] as Array<{ id: string; facilityId: string; facilityName: string; role: string }>,
+  };
+
+  const publicFacility = {
+    id: 'f-pub',
+    mflCode: 'MFL-77123',
+    name: 'Nyalenda Dispensary',
+    kephLevel: 2,
+    ownership: 'PUBLIC_MOH',
+    countyId: 'c1',
+  };
+
+  const privateFacility = {
+    id: 'f-priv',
+    mflCode: 'MFL-77124',
+    name: 'Aga Khan Kisumu',
+    kephLevel: 4,
+    ownership: 'PRIVATE_FOR_PROFIT',
+    countyId: 'c1',
+  };
+
+  async function openPostings() {
+    await renderAs('REGISTRAR');
+    await userEvent.click(screen.getByRole('button', { name: 'Postings' }));
+  }
+
+  /** Types into a search box and picks the first result. */
+  async function pick(label: RegExp, query: string, name: string) {
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(label), query);
+    const hit = await screen.findByRole('button', { name: new RegExp(name, 'i') });
+    await user.click(hit);
+  }
+
+  it('finds a clinician by licence number and shows their cadre', async () => {
+    adminStub.searchPractitioners.mockResolvedValue([nurse]);
+    await openPostings();
+
+    await userEvent.type(screen.getByLabelText(/clinician/i), 'NCK/2026');
+    await waitFor(() => expect(adminStub.searchPractitioners).toHaveBeenCalled());
+
+    expect(await screen.findByText('Amina Wanjiru')).toBeInTheDocument();
+    expect(screen.getByText(/NCK\/2026\/0038/)).toBeInTheDocument();
+  });
+
+  it('says the search is by licence, so nobody types a name and gets nothing', async () => {
+    await openPostings();
+    // Names are encrypted with no blind index; a name search cannot work,
+    // and silence would look like "this person is not registered".
+    expect(screen.getByText(/searched by licence number/i)).toBeInTheDocument();
+  });
+
+  it('THE OWNERSHIP RULE — refuses a private facility before the attempt', async () => {
+    adminStub.searchPractitioners.mockResolvedValue([nurse]);
+    adminStub.searchFacilities.mockResolvedValue([privateFacility]);
+    await openPostings();
+
+    await pick(/clinician/i, 'NCK/2026', 'Amina Wanjiru');
+    await pick(/facility/i, 'Aga', 'Aga Khan Kisumu');
+
+    // Stated, and the button disabled — not a refusal after the click.
+    expect(
+      await screen.findByText(/is not a public facility — it engages its own staff/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /post to facility/i })).toBeDisabled();
+    expect(adminStub.postStaff).not.toHaveBeenCalled();
+  });
+
+  it('allows a public facility and posts it', async () => {
+    adminStub.searchPractitioners.mockResolvedValue([nurse]);
+    adminStub.searchFacilities.mockResolvedValue([publicFacility]);
+    adminStub.postStaff.mockResolvedValue({ id: 'aff1', status: 'ACTIVE' });
+    await openPostings();
+
+    await pick(/clinician/i, 'NCK/2026', 'Amina Wanjiru');
+    await pick(/facility/i, 'Nyalenda', 'Nyalenda Dispensary');
+
+    const button = screen.getByRole('button', { name: /post to facility/i });
+    await waitFor(() => expect(button).not.toBeDisabled());
+    await userEvent.click(button);
+
+    await waitFor(() =>
+      expect(adminStub.postStaff).toHaveBeenCalledWith({
+        practitionerId: 'pr1',
+        facilityId: 'f-pub',
+      }),
+    );
+    expect(await screen.findByText(/posted to Nyalenda Dispensary/i)).toBeInTheDocument();
+  });
+
+  it('THE DUPLICATE GUARD — refuses a facility they already work at', async () => {
+    adminStub.searchPractitioners.mockResolvedValue([
+      {
+        ...nurse,
+        affiliations: [
+          { id: 'a1', facilityId: 'f-pub', facilityName: 'Nyalenda Dispensary', role: 'ATTENDING' },
+        ],
+      },
+    ]);
+    adminStub.searchFacilities.mockResolvedValue([publicFacility]);
+    await openPostings();
+
+    await pick(/clinician/i, 'NCK/2026', 'Amina Wanjiru');
+    await pick(/facility/i, 'Nyalenda', 'Nyalenda Dispensary');
+
+    // The server would refuse with AFFILIATION_EXISTS; saying it here saves
+    // a registrar the round trip and the confusion.
+    expect(
+      await screen.findByText(/already posted to Nyalenda Dispensary/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /post to facility/i })).toBeDisabled();
+  });
+
+  it('shows where a clinician already works, in the search results', async () => {
+    adminStub.searchPractitioners.mockResolvedValue([
+      {
+        ...nurse,
+        affiliations: [
+          { id: 'a1', facilityId: 'f-x', facilityName: 'Kisumu County Referral', role: 'ATTENDING' },
+        ],
+      },
+    ]);
+    await openPostings();
+    await userEvent.type(screen.getByLabelText(/clinician/i), 'NCK/2026');
+
+    expect(await screen.findByText(/already at Kisumu County Referral/i)).toBeInTheDocument();
+  });
+
+  it('marks ownership on every facility result, not only the chosen one', async () => {
+    adminStub.searchFacilities.mockResolvedValue([publicFacility, privateFacility]);
+    await openPostings();
+    await userEvent.type(screen.getByLabelText(/facility/i), 'Ki');
+
+    // A registrar scanning a list needs to see which rows are even eligible.
+    expect(await screen.findByText(/public moh/i)).toBeInTheDocument();
+    expect(screen.getByText(/private for profit/i)).toBeInTheDocument();
+  });
+
+  it('explains what is missing rather than showing a dead button', async () => {
+    await openPostings();
+    expect(screen.getByRole('button', { name: /post to facility/i })).toBeDisabled();
+    // A disabled control with no reason reads as a broken page.
+    expect(screen.getByText(/find the clinician by licence number/i)).toBeInTheDocument();
+  });
+
+  it('surfaces a server refusal in the server\'s own words', async () => {
+    const { ApiError } = await import('@/lib/api');
+    adminStub.searchPractitioners.mockResolvedValue([nurse]);
+    adminStub.searchFacilities.mockResolvedValue([publicFacility]);
+    adminStub.postStaff.mockRejectedValue(
+      new ApiError('That practitioner is already affiliated to this facility', 400, 'AFFILIATION_EXISTS'),
+    );
+    await openPostings();
+
+    await pick(/clinician/i, 'NCK/2026', 'Amina Wanjiru');
+    await pick(/facility/i, 'Nyalenda', 'Nyalenda Dispensary');
+    await userEvent.click(screen.getByRole('button', { name: /post to facility/i }));
+
+    // The client's checks are a courtesy; the server is the authority, and
+    // when it refuses the registrar sees why.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/already affiliated/i);
+  });
+
+  it('does not search on a single keystroke', async () => {
+    await openPostings();
+    await userEvent.type(screen.getByLabelText(/clinician/i), 'N');
+
+    // Below three characters a licence search would return the register.
+    await new Promise((r) => setTimeout(r, 350));
+    expect(adminStub.searchPractitioners).not.toHaveBeenCalled();
   });
 });

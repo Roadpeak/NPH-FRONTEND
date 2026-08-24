@@ -15,9 +15,12 @@ import {
   type ExpiringLicence,
   type PendingBreakGlass,
   type CountyRef,
+  type PractitionerHit,
+  type FacilityHit,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { sectionsFor, type SectionId } from '@/lib/adminSections';
+import { inputClass } from '@/components/PortalShell';
 
 /**
  * The Ministry administration dashboard.
@@ -357,23 +360,269 @@ function Facilities({ nameOfCounty }: { nameOfCounty: (id: string) => string }) 
   );
 }
 
+/** Ownership values the Ministry may post into. Mirrors the server's rule. */
+const PUBLIC_OWNERSHIP = new Set(['PUBLIC_MOH', 'PUBLIC_OTHER']);
+
 function Postings() {
+  const [pracQuery, setPracQuery] = useState('');
+  const [pracHits, setPracHits] = useState<PractitionerHit[]>([]);
+  const [practitioner, setPractitioner] = useState<PractitionerHit | null>(null);
+
+  const [facQuery, setFacQuery] = useState('');
+  const [facHits, setFacHits] = useState<FacilityHit[]>([]);
+  const [facility, setFacility] = useState<FacilityHit | null>(null);
+
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  // Debounced so a registrar typing a licence number does not fire a
+  // request per keystroke.
+  useEffect(() => {
+    if (pracQuery.trim().length < 3) {
+      setPracHits([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      admin.searchPractitioners(pracQuery).then(setPracHits).catch(() => setPracHits([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [pracQuery]);
+
+  useEffect(() => {
+    if (facQuery.trim().length < 2) {
+      setFacHits([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      admin.searchFacilities(facQuery).then(setFacHits).catch(() => setFacHits([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [facQuery]);
+
+  const isPublic = facility ? PUBLIC_OWNERSHIP.has(facility.ownership) : false;
+  const alreadyThere =
+    practitioner && facility
+      ? practitioner.affiliations.some((a) => a.facilityId === facility.id)
+      : false;
+
+  // Every reason the server would refuse, checked here so the button can
+  // explain instead of failing. The server still refuses regardless.
+  const blocker = !practitioner
+    ? 'Find the clinician by licence number'
+    : !facility
+      ? 'Find the facility'
+      : !isPublic
+        ? `${facility.name} is not a public facility — it engages its own staff`
+        : alreadyThere
+          ? `${practitioner.name} is already posted to ${facility.name}`
+          : null;
+
+  async function post() {
+    if (!practitioner || !facility) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await admin.postStaff({
+        practitionerId: practitioner.practitionerId,
+        facilityId: facility.id,
+      });
+      setDone(`${practitioner.name} posted to ${facility.name}`);
+      setPractitioner(null);
+      setFacility(null);
+      setPracQuery('');
+      setFacQuery('');
+      setPracHits([]);
+      setFacHits([]);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not post');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <h2 className="eyebrow mb-2">Staff postings</h2>
-      <p className="mb-4 max-w-prose text-sm text-ink-soft">
+      <p className="mb-5 max-w-prose text-sm text-ink-soft">
         The Ministry posts staff to <span className="font-semibold text-ink">public</span>{' '}
         facilities. Private, faith-based and NGO facilities engage their own
         clinicians from their facility portal — the server refuses a posting
         in the wrong direction, so a private employer cannot place someone in
         a county hospital and the Ministry cannot staff a private clinic.
       </p>
-      <p className="rounded-md border border-rule bg-surface-alt px-4 py-3 text-sm text-ink-soft">
-        Posting a clinician needs their practitioner record and the facility.
-        The search that pairs them is the next piece of this screen; the
-        endpoint behind it is built and tested.
-      </p>
+
+      {done && (
+        <p className="mb-4 rounded-md border border-good/30 bg-good-soft px-4 py-3 text-sm text-good">
+          {done}
+        </p>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* ---------------------------------------------- the clinician --- */}
+        <div>
+          <label htmlFor="prac" className="eyebrow mb-1.5 block">
+            Clinician
+          </label>
+          <input
+            id="prac"
+            value={pracQuery}
+            onChange={(e) => {
+              setPracQuery(e.target.value);
+              setPractitioner(null);
+            }}
+            placeholder="Licence number, e.g. NCK/2026/0038"
+            className={`${inputClass} font-mono`}
+          />
+          {/* By licence, not by name: names are encrypted, and two
+              clinicians share a name far more often than a licence. */}
+          <p className="mt-1 text-micro text-ink-faint">
+            Searched by licence number. At least three characters.
+          </p>
+
+          {practitioner ? (
+            <div className="mt-3 rounded-lg border border-gov/40 bg-surface px-4 py-3">
+              <p className="font-semibold">{practitioner.name}</p>
+              <p className="font-mono text-micro text-ink-faint">
+                {practitioner.cadre.replace(/_/g, ' ').toLowerCase()} ·{' '}
+                {practitioner.licences[0]?.licenceNumber}
+              </p>
+              {practitioner.affiliations.length > 0 && (
+                <p className="mt-1 text-micro text-ink-soft">
+                  Already at{' '}
+                  {practitioner.affiliations.map((a) => a.facilityName).join(', ')}
+                </p>
+              )}
+              <button
+                onClick={() => setPractitioner(null)}
+                className="mt-2 text-sm text-gov underline"
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <ul className="mt-3 space-y-1.5">
+              {pracHits.map((p) => (
+                <li key={p.practitionerId}>
+                  <button
+                    onClick={() => setPractitioner(p)}
+                    className="w-full rounded-lg border border-rule bg-surface px-4 py-3 text-left hover:border-gov"
+                  >
+                    <span className="block font-semibold">{p.name}</span>
+                    <span className="block font-mono text-micro text-ink-faint">
+                      {p.cadre.replace(/_/g, ' ').toLowerCase()} ·{' '}
+                      {p.licences[0]?.licenceNumber ?? 'no licence'}
+                    </span>
+                    {p.affiliations.length > 0 && (
+                      <span className="block text-micro text-ink-soft">
+                        Already at {p.affiliations.map((a) => a.facilityName).join(', ')}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* ----------------------------------------------- the facility --- */}
+        <div>
+          <label htmlFor="fac" className="eyebrow mb-1.5 block">
+            Facility
+          </label>
+          <input
+            id="fac"
+            value={facQuery}
+            onChange={(e) => {
+              setFacQuery(e.target.value);
+              setFacility(null);
+            }}
+            placeholder="Name or MFL code"
+            className={inputClass}
+          />
+          <p className="mt-1 text-micro text-ink-faint">
+            Approved facilities only.
+          </p>
+
+          {facility ? (
+            <div className="mt-3 rounded-lg border border-gov/40 bg-surface px-4 py-3">
+              <p className="font-semibold">{facility.name}</p>
+              <p className="font-mono text-micro text-ink-faint">
+                {facility.mflCode} · KEPH {facility.kephLevel}
+              </p>
+              <OwnershipNote ownership={facility.ownership} />
+              <button
+                onClick={() => setFacility(null)}
+                className="mt-2 text-sm text-gov underline"
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <ul className="mt-3 space-y-1.5">
+              {facHits.map((f) => (
+                <li key={f.id}>
+                  <button
+                    onClick={() => setFacility(f)}
+                    className="w-full rounded-lg border border-rule bg-surface px-4 py-3 text-left hover:border-gov"
+                  >
+                    <span className="block font-semibold">{f.name}</span>
+                    <span className="block font-mono text-micro text-ink-faint">
+                      {f.mflCode} · KEPH {f.kephLevel}
+                    </span>
+                    {/* Shown on every row: choosing blind means picking a
+                        private clinic and being refused after the fact. */}
+                    <span
+                      className={`block text-micro ${
+                        PUBLIC_OWNERSHIP.has(f.ownership) ? 'text-good' : 'text-caution'
+                      }`}
+                    >
+                      {f.ownership.replace(/_/g, ' ').toLowerCase()}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-6 border-t border-rule pt-5">
+        <button
+          onClick={post}
+          disabled={busy || blocker !== null}
+          className="rounded-md bg-gov px-5 py-2.5 font-semibold text-surface disabled:opacity-60"
+        >
+          {busy ? 'Posting…' : 'Post to facility'}
+        </button>
+
+        {blocker && (
+          <p className="mt-2 text-sm text-ink-soft">{blocker}</p>
+        )}
+
+        {error && (
+          <p
+            role="alert"
+            className="mt-3 rounded-md border border-critical/30 bg-critical-soft px-3 py-2 text-sm text-critical"
+          >
+            {error}
+          </p>
+        )}
+      </div>
     </>
+  );
+}
+
+/** Says what the ownership means for staffing, not just what it is. */
+function OwnershipNote({ ownership }: { ownership: string }) {
+  const isPublic = PUBLIC_OWNERSHIP.has(ownership);
+  return (
+    <p className={`mt-1 text-micro ${isPublic ? 'text-good' : 'text-caution'}`}>
+      {ownership.replace(/_/g, ' ').toLowerCase()} —{' '}
+      {isPublic
+        ? 'the Ministry posts staff here'
+        : 'this facility engages its own staff, so the Ministry cannot post here'}
+    </p>
   );
 }
 

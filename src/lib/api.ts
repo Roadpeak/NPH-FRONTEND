@@ -357,8 +357,44 @@ export interface PendingBreakGlass {
  * itself is the server's, and a screen that hid a section would still be
  * refused if it called anyway.
  */
+export interface PractitionerHit {
+  practitionerId: string;
+  name: string;
+  cadre: string;
+  status: string;
+  licences: Array<{
+    regulator: string;
+    licenceNumber: string;
+    status: string;
+    expiresOn: string;
+  }>;
+  /** Where they already work — so the screen can prevent a duplicate. */
+  affiliations: Array<{
+    id: string;
+    facilityId: string;
+    facilityName: string;
+    role: string;
+  }>;
+}
+
+export interface FacilityHit {
+  id: string;
+  mflCode: string;
+  name: string;
+  kephLevel: number;
+  /** Decides whether the Ministry may post here at all. */
+  ownership: string;
+  countyId: string;
+}
+
 export const admin = {
   overview: () => api.get<AdminOverview>('/admin/overview'),
+
+  searchPractitioners: (q: string) =>
+    api.get<PractitionerHit[]>(`/admin/practitioners/search?q=${encodeURIComponent(q)}`),
+
+  searchFacilities: (q: string) =>
+    api.get<FacilityHit[]>(`/admin/facilities/search?q=${encodeURIComponent(q)}`),
 
   pendingFacilities: () => api.get<PendingFacility[]>('/admin/facilities/pending'),
 
