@@ -36,6 +36,7 @@ import {
   type CheckInSession,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
+import { WorkerNav } from '@/components/WorkerNav';
 
 /** The demo patient's National ID, from `pnpm seed:demo` in the backend. */
 const DEMO_IDENTIFIER = '39104882';
@@ -223,6 +224,8 @@ export default function EncounterPage() {
 
   return (
     <div className="min-h-screen bg-surface-sunken">
+      <WorkerNav />
+
       {/* --- patient identity --- */}
       {patient ? (
         <PatientHeader

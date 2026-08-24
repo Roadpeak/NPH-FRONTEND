@@ -851,6 +851,28 @@ export const nhp = {
 
   currentSession: () => api.get<CheckInSession | null>('/check-ins/current'),
 
+  /** The facilities this clinician is posted to, and may check in at. */
+  myFacilities: () =>
+    api.get<
+      Array<{
+        affiliationId: string;
+        role: string;
+        facilityId: string;
+        name: string;
+        mflCode: string | null;
+        kephLevel: number;
+        countyId: string;
+      }>
+    >('/check-ins/facilities'),
+
+  checkIn: (facilityId: string) =>
+    api.post<{ id: string; facilityId: string; expiresAt: string; licenceNumber: string }>(
+      '/check-ins',
+      { facilityId },
+    ),
+
+  checkOut: () => api.post<{ ended: boolean }>('/check-ins/end'),
+
   searchDiagnoses: (query: string) =>
     api.get<DiagnosisHit[]>(`/vocab/diagnoses?q=${encodeURIComponent(query)}`),
 

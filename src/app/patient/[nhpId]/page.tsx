@@ -15,6 +15,7 @@ import {
   type ProcedureRecord,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
+import { WorkerNav } from '@/components/WorkerNav';
 
 /**
  * The clinician's patient summary.
@@ -107,6 +108,7 @@ export default function PatientSummaryPage({
 
   return (
     <div className="min-h-screen bg-surface-sunken">
+      <WorkerNav />
       {/* --- identity --- */}
       <header className="border-b border-rule bg-surface-alt">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
