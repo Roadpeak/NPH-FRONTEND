@@ -142,7 +142,13 @@ export function SignInForm({
           {portal.selfRegistration ? (
             <p className="mt-4 text-center text-sm text-ink-soft">
               No account yet?{' '}
-              <Link href={portal.registerPath} className="font-semibold text-gov underline">
+              {/* Padded to a thumb-sized target: this is the primary route
+                  to creating an account, and a 17px link is one a thumb
+                  misses on a phone. */}
+              <Link
+                href={portal.registerPath}
+                className="inline-flex min-h-[44px] items-center px-2 font-semibold text-gov underline"
+              >
                 Register
               </Link>
             </p>

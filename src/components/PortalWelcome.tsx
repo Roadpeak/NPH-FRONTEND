@@ -54,13 +54,22 @@ export function PortalHeader({ portal }: { portal: Portal }) {
           </span>
         </Link>
 
-        <div className="flex items-center gap-4 text-sm">
+        {/* Padded to a real tap target: a 20px-tall link is a link a thumb
+            misses, and 147 is the number someone reaches for when the
+            portal has already failed them. */}
+        <div className="flex items-center gap-1 text-sm">
           {/* 147 is the real Kenyan health helpline. A portal with no way to
               reach a person is one people abandon at the first problem. */}
-          <a href="tel:147" className="font-semibold text-gov">
+          <a
+            href="tel:147"
+            className="-my-2 inline-flex min-h-[44px] items-center px-3 font-semibold text-gov"
+          >
             147
           </a>
-          <a href="mailto:help@nhp.health.go.ke" className="text-ink-soft hover:text-gov">
+          <a
+            href="mailto:help@nhp.health.go.ke"
+            className="-my-2 hidden min-h-[44px] items-center px-3 text-ink-soft hover:text-gov sm:inline-flex"
+          >
             help@nhp.health.go.ke
           </a>
         </div>

@@ -64,10 +64,10 @@ function Column({
   const severe = critical && entries.some((e) => e.tone === 'critical');
 
   return (
-    <div className="min-w-0 border-l border-rule pl-4">
+    <div className="min-w-0 border-t border-rule pt-2 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
       <p className="eyebrow mb-0.5">{label}</p>
       <p
-        className={`text-sm ${severe ? 'font-semibold text-critical' : 'text-ink'}`}
+        className={`break-words text-sm ${severe ? 'font-semibold text-critical' : 'text-ink'}`}
       >
         {entries.length === 0 ? (
           <span className="text-ink-faint">{none}</span>
@@ -103,7 +103,7 @@ export function CitizenHeader({
 
   return (
     <header className="border-b border-rule bg-surface">
-      <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-x-6 gap-y-4 px-4 py-4 sm:px-6">
+      <div className="mx-auto flex max-w-4xl flex-col gap-y-3 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-rule bg-surface-alt">
             {photo ? (
@@ -128,7 +128,7 @@ export function CitizenHeader({
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-6 sm:gap-y-3">
           <Column
             label={labels.harmful}
             entries={items.filter((i) => i.kind === 'ALLERGY')}

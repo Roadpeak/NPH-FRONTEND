@@ -79,8 +79,18 @@ export function PortalShell({
         </div>
 
         <p className="mt-4 text-center text-micro text-ink-faint">
-          Contact <a href="tel:147" className="font-semibold text-gov">147</a> or{' '}
-          <a href="mailto:help@nhp.health.go.ke" className="font-semibold text-gov">
+          Contact{' '}
+          <a
+            href="tel:147"
+            className="inline-flex min-h-[44px] items-center px-1 font-semibold text-gov"
+          >
+            147
+          </a>{' '}
+          or{' '}
+          <a
+            href="mailto:help@nhp.health.go.ke"
+            className="inline-flex min-h-[44px] items-center px-1 font-semibold text-gov"
+          >
             help@nhp.health.go.ke
           </a>{' '}
           for help. Every sign-in is recorded.

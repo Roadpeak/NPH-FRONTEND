@@ -43,10 +43,11 @@ function Column({
   tone?: 'plain' | 'critical';
 }) {
   return (
-    <div className="min-w-0 border-l border-rule pl-4">
+    <div className="min-w-0 border-t border-rule pt-2 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
       <p className="eyebrow mb-0.5 whitespace-nowrap">{label}</p>
       <p
-        className={`truncate text-sm ${
+        // NOT truncated: a clipped allergy is an allergy nobody reads.
+        className={`break-words text-sm ${
           tone === 'critical' ? 'font-semibold text-critical' : 'text-ink'
         }`}
       >
@@ -74,7 +75,7 @@ export function PatientHeader({
 
   return (
     <header className="border-b border-rule bg-surface">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-4 px-4 py-4 sm:px-6">
+      <div className="mx-auto flex max-w-6xl flex-col gap-y-3 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-4 sm:px-6">
         {/* --- identity --- */}
         <div className="flex min-w-0 items-center gap-3">
           <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-rule bg-surface-alt">
@@ -107,7 +108,7 @@ export function PatientHeader({
         </div>
 
         {/* --- the clinical facts, inline --- */}
-        <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-6 sm:gap-y-3">
           <Column label="Allergies" tone={severe.length > 0 ? 'critical' : 'plain'}>
             {allergies.length === 0 ? (
               <span className="text-ink-faint">None recorded</span>

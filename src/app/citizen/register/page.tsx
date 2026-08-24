@@ -112,7 +112,10 @@ export default function CitizenRegisterPage() {
 
         <p className="mt-4 text-center text-sm text-ink-soft">
           Already registered?{' '}
-          <Link href={PORTALS.citizen.signInPath} className="font-semibold text-gov underline">
+          <Link
+            href={PORTALS.citizen.signInPath}
+            className="inline-flex min-h-[44px] items-center px-2 font-semibold text-gov underline"
+          >
             Sign in
           </Link>
         </p>

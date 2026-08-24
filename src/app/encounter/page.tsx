@@ -253,11 +253,19 @@ export default function EncounterPage() {
       )}
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <div className="grid gap-6 lg:grid-cols-[176px_minmax(0,1fr)]">
+        <div className="grid min-w-0 gap-6 lg:grid-cols-[176px_minmax(0,1fr)]">
           {/* --- step rail --- */}
-          <nav aria-label="Encounter steps" className="lg:sticky lg:top-6 lg:self-start">
+          {/*
+            `min-w-0` matters: without it the grid track sizes to the step
+            rail's content, and on a phone the whole page scrolls sideways
+            instead of just the rail.
+          */}
+          <nav
+            aria-label="Encounter steps"
+            className="min-w-0 lg:sticky lg:top-6 lg:self-start"
+          >
             <p className="eyebrow mb-2">This encounter</p>
-            <ol className="flex gap-1.5 overflow-x-auto lg:flex-col lg:gap-1">
+            <ol className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 lg:flex-col lg:gap-1 lg:overflow-visible lg:pb-0">
               {STEPS.map((name, i) => {
                 const state = i < step ? 'done' : i === step ? 'current' : 'todo';
                 return (
