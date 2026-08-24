@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   citizen,
+  photo,
   hasSession,
   restoreSession,
   ApiError,
@@ -12,6 +13,7 @@ import {
   type AccessEntry,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
+import { CitizenHeader } from '@/components/CitizenHeader';
 
 /**
  * The citizen timeline.
@@ -54,6 +56,9 @@ export default function CitizenPage() {
   const [access, setAccess] = useState<AccessEntry[]>([]);
   const [openVisit, setOpenVisit] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Fetched separately and separately caught: a photo that fails to load
+  // must never delay or block the record itself.
+  const [myPhoto, setMyPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +77,11 @@ export default function CitizenPage() {
         setSummary(s);
         setVisits(v);
         setAccess(a);
+
+        photo
+          .mine()
+          .then((p) => !cancelled && setMyPhoto(p.photo))
+          .catch(() => !cancelled && setMyPhoto(null));
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && err.code === 'NO_SESSION') {
@@ -90,17 +100,24 @@ export default function CitizenPage() {
 
   return (
     <div className="min-h-screen bg-surface-sunken pb-20">
-      <header className="border-b border-rule bg-surface-alt">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold">
-              {summary ? `${ui.greeting}, ${summary.name.split(' ')[0]}` : '…'}
-            </h1>
-            <p className="text-micro text-ink-faint">{ui.yourRecord}</p>
-          </div>
-          {/* Swahili is not a toggle bolted on — it is the language of
-              everyday life in Kenya, and the interface translates with the
-              content. */}
+      <CitizenHeader
+        name={summary?.name ?? '…'}
+        displayNumber={summary?.displayNumber ?? ''}
+        age={summary?.age ?? 0}
+        photo={myPhoto}
+        items={summary?.rightNow ?? []}
+        medicines={summary?.dailyMedicines ?? []}
+        labels={{
+          harmful: ui.harmful ?? '',
+          longTerm: ui.longTerm ?? '',
+          medicines: ui.medicines ?? '',
+          none: ui.none ?? '',
+          yourNumber: ui.yourNumber ?? '',
+        }}
+        actions={
+          /* Swahili is not a toggle bolted on — it is the language of
+             everyday life in Kenya, and the interface translates with the
+             content. */
           <button
             onClick={() => setLang((l) => (l === 'en' ? 'sw' : 'en'))}
             className="rounded-full border border-rule px-3 py-1 font-mono text-micro font-semibold text-gov"
@@ -108,10 +125,10 @@ export default function CitizenPage() {
           >
             {lang === 'en' ? 'SW' : 'EN'}
           </button>
-        </div>
-      </header>
+        }
+      />
 
-      <main className="mx-auto max-w-2xl px-4 py-5">
+      <main className="mx-auto max-w-4xl px-4 py-5 sm:px-6">
         {error && (
           <p className="mb-4 rounded-md border border-critical/30 bg-critical-soft px-3 py-2.5 text-sm text-critical">
             {error}
@@ -299,7 +316,7 @@ export default function CitizenPage() {
 
       {/* Four tabs, no more — Family and Find care land with their screens. */}
       <nav className="fixed inset-x-0 bottom-0 border-t border-rule bg-surface-alt">
-        <div className="mx-auto flex max-w-2xl">
+        <div className="mx-auto flex max-w-4xl">
           {(['RECORD', 'ACCESS'] as Tab[]).map((t) => (
             <button
               key={t}
