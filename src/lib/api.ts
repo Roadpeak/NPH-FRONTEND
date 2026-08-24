@@ -214,12 +214,14 @@ export interface PrescribingCheck {
 // ---------------------------------------------------------------- endpoints
 
 export interface LoginResult {
-  status: 'AUTHENTICATED' | 'MFA_REQUIRED';
+  status: 'AUTHENTICATED' | 'MFA_REQUIRED' | 'MFA_ENROLMENT_REQUIRED';
   accessToken?: string;
   /** The refresh token is NOT here — it lives in an httpOnly cookie. */
   csrfToken?: string;
   mfaToken?: string;
   mfaMode?: 'SMS' | 'TOTP';
+  /** Scoped to enrolment; not a session. */
+  enrolToken?: string;
   /** Masked destination for an SMS factor, e.g. +2547***678. */
   sentTo?: string;
 }
@@ -607,6 +609,27 @@ export const auth = {
     }>('/auth/me'),
 
   logout: () => api.post<{ revoked: number }>('/auth/logout'),
+
+  /**
+   * Enrolling a second factor.
+   *
+   * `enrolToken` is present when the account cannot sign in yet because it
+   * has none — it is scoped to enrolment only and is NOT a session. When
+   * the caller already has a session, omit it.
+   */
+  enrolTotp: (label: string, enrolToken?: string) =>
+    api.post<{ secret: string; uri: string }>('/auth/mfa/enrol', { label, enrolToken }),
+
+  confirmTotp: (code: string, enrolToken?: string) =>
+    api.post<{ confirmed: boolean }>('/auth/mfa/confirm', { code, enrolToken }),
+
+  enrolSms: (enrolToken?: string) =>
+    api.post<{ sentTo: string; expiresInMinutes: number }>('/auth/mfa/sms/enrol', {
+      enrolToken,
+    }),
+
+  confirmSms: (code: string, enrolToken?: string) =>
+    api.post<{ confirmed: boolean }>('/auth/mfa/sms/confirm', { code, enrolToken }),
 };
 
 export interface TimelineEncounter {

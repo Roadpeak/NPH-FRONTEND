@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { auth, setSession, ApiError } from '@/lib/api';
 import { portalFor, type Portal } from '@/lib/portals';
 import { PortalShell, Field, inputClass, SubmitButton, ErrorNote } from './PortalShell';
+import { MfaEnrolment } from './MfaEnrolment';
 
 /**
  * Sign in — the single implementation, used by all four portals.
@@ -32,7 +33,10 @@ export function SignInForm({
   reason?: string | null;
 }) {
   const router = useRouter();
-  const [stage, setStage] = useState<'CREDENTIALS' | 'MFA'>('CREDENTIALS');
+  const [stage, setStage] = useState<'CREDENTIALS' | 'MFA' | 'ENROL' | 'ENROLLED'>(
+    'CREDENTIALS',
+  );
+  const [enrolToken, setEnrolToken] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -63,7 +67,13 @@ export function SignInForm({
     setBusy(true);
     try {
       const result = await auth.login(phone, password);
-      if (result.status === 'MFA_REQUIRED') {
+
+      if (result.status === 'MFA_ENROLMENT_REQUIRED') {
+        // Not an error. The password was correct; this account simply has
+        // no second factor yet, and until now that was a dead end.
+        setEnrolToken(result.enrolToken!);
+        setStage('ENROL');
+      } else if (result.status === 'MFA_REQUIRED') {
         setMfaToken(result.mfaToken!);
         setMfaMode(result.mfaMode ?? 'TOTP');
         setSentTo(result.sentTo ?? null);
@@ -98,7 +108,15 @@ export function SignInForm({
   return (
     <PortalShell
       portalName={portal.name}
-      title={stage === 'CREDENTIALS' ? 'Sign in' : 'Second factor'}
+      title={
+        stage === 'CREDENTIALS'
+          ? 'Sign in'
+          : stage === 'ENROL'
+            ? 'Set up your second factor'
+            : stage === 'ENROLLED'
+              ? 'Second factor ready'
+              : 'Second factor'
+      }
       intro={
         reason === 'mfa' ? (
           <p className="mb-4 rounded-md border border-caution/40 bg-caution-soft px-3 py-2.5 text-sm text-caution">
@@ -108,7 +126,33 @@ export function SignInForm({
         ) : null
       }
     >
-      {stage === 'CREDENTIALS' ? (
+      {stage === 'ENROL' ? (
+        <MfaEnrolment
+          enrolToken={enrolToken}
+          onDone={() => setStage('ENROLLED')}
+        />
+      ) : stage === 'ENROLLED' ? (
+        <>
+          <p className="mb-5 max-w-prose text-sm text-ink-soft">
+            Your second factor is set up. Sign in again and you will be asked
+            for a code.
+          </p>
+          <button
+            onClick={() => {
+              // Back to a clean credentials form: the password they typed a
+              // few minutes ago is stale in the field but not in their head,
+              // and pre-filling it would be a shoulder-surfing risk.
+              setStage('CREDENTIALS');
+              setPassword('');
+              setEnrolToken('');
+              setError(null);
+            }}
+            className="w-full rounded-md bg-gov px-4 py-2.5 font-semibold text-surface"
+          >
+            Sign in
+          </button>
+        </>
+      ) : stage === 'CREDENTIALS' ? (
         <form onSubmit={submitCredentials}>
           <Field id="phone" label="Phone number">
             <input
