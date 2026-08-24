@@ -522,6 +522,46 @@ export const admin = {
 };
 
 /** Open reference data — a registration form needs these before sign-in. */
+export interface CitizenProfile {
+  contact: { phone: string | null; email: string | null };
+  photo: string | null;
+  mfaMode: string;
+  /** Read-only. Shown so an error can be seen and reported. */
+  identity: {
+    displayNumber: string;
+    givenName: string;
+    middleName: string | null;
+    familyName: string;
+    dateOfBirth: string;
+    sexAtBirth: string;
+    bloodGroup: string | null;
+    nationalIdMasked: string | null;
+    verificationState: string;
+  };
+  countyId: string;
+  subcountyId: string;
+}
+
+export interface FamilyMember {
+  guardianshipId: string;
+  relationship: string;
+  isPrimary: boolean;
+  evidence: string;
+  child: {
+    displayNumber: string;
+    givenName: string;
+    familyName: string;
+    dateOfBirth: string;
+    ageYears: number;
+    sexAtBirth: string;
+    maturity: string;
+    /** Whether a facility can find this child yet. */
+    verified: boolean;
+    verificationState: string;
+    photo: string | null;
+  };
+}
+
 /** A person's passport photograph, behind the same auth as their record. */
 export const photo = {
   ofPatient: (nhpId: string) =>
@@ -663,6 +703,28 @@ export const citizen = {
     api.get<CitizenVisit[]>(`/persons/me/visits?lang=${lang}`),
 
   accessLog: () => api.get<AccessEntry[]>('/persons/me/access-log'),
+
+  profile: () => api.get<CitizenProfile>('/persons/me/profile'),
+
+  updateProfile: (patch: { phone?: string; email?: string }) =>
+    api.patch<{ updated: string[] }>('/persons/me/profile', patch),
+
+  family: () => api.get<FamilyMember[]>('/persons/me/family'),
+
+  addChild: (child: {
+    givenName: string;
+    middleName?: string;
+    familyName: string;
+    sexAtBirth: string;
+    dateOfBirth: string;
+    relationship: string;
+    birthCertNumber?: string;
+    photo?: string;
+  }) =>
+    api.post<{ displayNumber: string; verified: boolean; message: string }>(
+      '/persons/me/family',
+      child,
+    ),
 
   dispute: (encounterId: string, note: string) =>
     api.post<unknown>('/persons/me/disputes', { encounterId, note }),

@@ -11,9 +11,12 @@ import {
   type CitizenSummaryPayload,
   type CitizenVisit,
   type AccessEntry,
+  type CitizenProfile,
+  type FamilyMember,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { CitizenHeader } from '@/components/CitizenHeader';
+import { Field, inputClass } from '@/components/PortalShell';
 
 /**
  * The citizen timeline.
@@ -31,12 +34,12 @@ import { CitizenHeader } from '@/components/CitizenHeader';
  * Four tabs, no more. Record · Family · Access · Find care.
  */
 
-type Tab = 'RECORD' | 'ACCESS';
+type Tab = 'RECORD' | 'FAMILY' | 'PROFILE' | 'ACCESS';
 type Lang = 'en' | 'sw';
 
 const TAB_LABELS: Record<Lang, Record<Tab, string>> = {
-  en: { RECORD: 'Record', ACCESS: 'Who has seen it' },
-  sw: { RECORD: 'Rekodi', ACCESS: 'Nani ameiona' },
+  en: { RECORD: 'Record', FAMILY: 'Family', PROFILE: 'Profile', ACCESS: 'Who has seen it' },
+  sw: { RECORD: 'Rekodi', FAMILY: 'Familia', PROFILE: 'Wasifu', ACCESS: 'Nani ameiona' },
 };
 
 function formatDate(iso: string, lang: Lang) {
@@ -263,6 +266,10 @@ export default function CitizenPage() {
           </>
         )}
 
+        {tab === 'FAMILY' && <FamilyPanel lang={lang} />}
+
+        {tab === 'PROFILE' && <ProfilePanel lang={lang} />}
+
         {tab === 'ACCESS' && (
           <>
             <h2 className="eyebrow mb-1">
@@ -317,7 +324,7 @@ export default function CitizenPage() {
       {/* Four tabs, no more — Family and Find care land with their screens. */}
       <nav className="fixed inset-x-0 bottom-0 border-t border-rule bg-surface-alt">
         <div className="mx-auto flex max-w-4xl">
-          {(['RECORD', 'ACCESS'] as Tab[]).map((t) => (
+          {(['RECORD', 'FAMILY', 'PROFILE', 'ACCESS'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -332,5 +339,473 @@ export default function CitizenPage() {
         </div>
       </nav>
     </div>
+  );
+}
+
+/**
+ * Bilingual copy for the two new panels.
+ *
+ * Kept here rather than in the backend UI strings because these are screen
+ * furniture, not clinical content — the labels the server owns are the ones
+ * that must stay in step with the record itself.
+ */
+const T = {
+  en: {
+    yourChildren: 'Your children',
+    noChildren: 'No children added yet',
+    notConfirmed: 'Not yet confirmed',
+    confirmedHint:
+      'Take their birth certificate to any facility and they will confirm the record. Until then a facility cannot find it.',
+    confirmed: 'Confirmed',
+    addChild: 'Add a child',
+    addChildNote:
+      'You must be their parent or guardian. Adding a child is recorded.',
+    firstName: 'First name',
+    familyName: 'Family name',
+    dob: 'Date of birth',
+    sex: 'Sex at birth',
+    relationship: 'Your relationship to them',
+    birthCert: 'Birth certificate number',
+    birthCertHint: 'Optional. Providing it speeds up confirmation.',
+    save: 'Add child',
+    cancel: 'Cancel',
+    years: 'years',
+    yourDetails: 'Your details',
+    phone: 'Phone number',
+    email: 'Email address',
+    edit: 'Edit',
+    saveChanges: 'Save',
+    cannotChangeHere: 'These cannot be changed here',
+    cannotChangeWhy:
+      'A facility matches you on these. If something is wrong, report it and the facility will correct it.',
+    reportError: 'Report an error',
+    name: 'Name',
+    nationalId: 'National ID',
+    born: 'Born',
+    notSet: 'Not set',
+    saved: 'Saved',
+  },
+  sw: {
+    yourChildren: 'Watoto wako',
+    noChildren: 'Hakuna watoto walioongezwa bado',
+    notConfirmed: 'Bado haijathibitishwa',
+    confirmedHint:
+      'Peleka cheti chake cha kuzaliwa kwenye kituo chochote nao watathibitisha rekodi. Hadi wakati huo kituo hakiwezi kuipata.',
+    confirmed: 'Imethibitishwa',
+    addChild: 'Ongeza mtoto',
+    addChildNote: 'Lazima uwe mzazi au mlezi wake. Kuongeza mtoto kunarekodiwa.',
+    firstName: 'Jina la kwanza',
+    familyName: 'Jina la familia',
+    dob: 'Tarehe ya kuzaliwa',
+    sex: 'Jinsia wakati wa kuzaliwa',
+    relationship: 'Uhusiano wako naye',
+    birthCert: 'Nambari ya cheti cha kuzaliwa',
+    birthCertHint: 'Si lazima. Kuitoa kunaharakisha uthibitisho.',
+    save: 'Ongeza mtoto',
+    cancel: 'Ghairi',
+    years: 'miaka',
+    yourDetails: 'Maelezo yako',
+    phone: 'Nambari ya simu',
+    email: 'Barua pepe',
+    edit: 'Hariri',
+    saveChanges: 'Hifadhi',
+    cannotChangeHere: 'Haya hayawezi kubadilishwa hapa',
+    cannotChangeWhy:
+      'Kituo kinakutambua kwa haya. Kama kuna kosa, ripoti nao watakirekebisha.',
+    reportError: 'Ripoti kosa',
+    name: 'Jina',
+    nationalId: 'Kitambulisho',
+    born: 'Alizaliwa',
+    notSet: 'Haijawekwa',
+    saved: 'Imehifadhiwa',
+  },
+} as const;
+
+const RELATIONSHIPS = [
+  { value: 'MOTHER', en: 'Mother', sw: 'Mama' },
+  { value: 'FATHER', en: 'Father', sw: 'Baba' },
+  { value: 'LEGAL_GUARDIAN', en: 'Legal guardian', sw: 'Mlezi wa kisheria' },
+  { value: 'GRANDPARENT', en: 'Grandparent', sw: 'Babu au bibi' },
+  { value: 'FOSTER', en: 'Foster parent', sw: 'Mlezi wa kambo' },
+  { value: 'OTHER', en: 'Other', sw: 'Nyingine' },
+];
+
+/**
+ * The family panel.
+ *
+ * A child added here is unverified and invisible to facility search until a
+ * clinician attests it. That is stated on the child's own row, in the words
+ * a parent needs — not as a status enum — because discovering it at a
+ * facility counter is the failure this screen exists to prevent.
+ */
+function FamilyPanel({ lang }: { lang: Lang }) {
+  const t = T[lang];
+  const [family, setFamily] = useState<FamilyMember[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const [givenName, setGivenName] = useState('');
+  const [familyName, setFamilyName] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [sexAtBirth, setSexAtBirth] = useState('');
+  const [relationship, setRelationship] = useState('');
+  const [birthCertNumber, setBirthCertNumber] = useState('');
+
+  const load = () =>
+    citizen
+      .family()
+      .then(setFamily)
+      .catch((e) => {
+        setError(e instanceof ApiError ? e.message : 'Could not load');
+        setFamily([]);
+      });
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await citizen.addChild({
+        givenName,
+        familyName,
+        sexAtBirth,
+        dateOfBirth,
+        relationship,
+        birthCertNumber: birthCertNumber || undefined,
+      });
+      setAdding(false);
+      setGivenName('');
+      setFamilyName('');
+      setDateOfBirth('');
+      setSexAtBirth('');
+      setRelationship('');
+      setBirthCertNumber('');
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not add');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!family) return <p className="text-sm text-ink-faint">…</p>;
+
+  return (
+    <>
+      <h2 className="eyebrow mb-2">{t.yourChildren}</h2>
+
+      {error && (
+        <p role="alert" className="mb-3 rounded-md border border-critical/30 bg-critical-soft px-3 py-2 text-sm text-critical">
+          {error}
+        </p>
+      )}
+
+      {family.length === 0 && !adding && (
+        <p className="mb-4 text-sm text-ink-faint">{t.noChildren}</p>
+      )}
+
+      <ul className="mb-5 space-y-2">
+        {family.map((m) => (
+          <li
+            key={m.guardianshipId}
+            className={`rounded-lg border px-4 py-3 ${
+              m.child.verified ? 'border-rule bg-surface' : 'border-caution/40 bg-caution-soft'
+            }`}
+          >
+            <p className="text-sm font-semibold">
+              {m.child.givenName} {m.child.familyName}
+            </p>
+            <p className="text-micro text-ink-soft">
+              {m.child.ageYears} {t.years} · {m.child.displayNumber}
+            </p>
+            {m.child.verified ? (
+              <p className="mt-1 text-micro text-good">{t.confirmed}</p>
+            ) : (
+              /* Said in the words a parent needs, not as a status enum. */
+              <>
+                <p className="mt-1 text-micro font-semibold text-caution">{t.notConfirmed}</p>
+                <p className="text-micro text-ink-soft">{t.confirmedHint}</p>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {adding ? (
+        <form onSubmit={submit} className="rounded-lg border border-rule bg-surface p-4">
+          <div className="grid gap-x-4 sm:grid-cols-2">
+            <Field id="cGiven" label={t.firstName}>
+              <input
+                id="cGiven"
+                required
+                value={givenName}
+                onChange={(e) => setGivenName(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field id="cFamily" label={t.familyName}>
+              <input
+                id="cFamily"
+                required
+                value={familyName}
+                onChange={(e) => setFamilyName(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-x-4 sm:grid-cols-2">
+            <Field id="cDob" label={t.dob}>
+              <input
+                id="cDob"
+                type="date"
+                required
+                max={new Date().toISOString().slice(0, 10)}
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field id="cSex" label={t.sex}>
+              <select
+                id="cSex"
+                required
+                value={sexAtBirth}
+                onChange={(e) => setSexAtBirth(e.target.value)}
+                className={inputClass}
+              >
+                <option value="">…</option>
+                <option value="FEMALE">{lang === 'sw' ? 'Mke' : 'Female'}</option>
+                <option value="MALE">{lang === 'sw' ? 'Mume' : 'Male'}</option>
+                <option value="INTERSEX">{lang === 'sw' ? 'Jinsia mbili' : 'Intersex'}</option>
+              </select>
+            </Field>
+          </div>
+
+          <Field id="cRel" label={t.relationship}>
+            <select
+              id="cRel"
+              required
+              value={relationship}
+              onChange={(e) => setRelationship(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">…</option>
+              {RELATIONSHIPS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {lang === 'sw' ? r.sw : r.en}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field id="cCert" label={t.birthCert} hint={t.birthCertHint}>
+            <input
+              id="cCert"
+              value={birthCertNumber}
+              onChange={(e) => setBirthCertNumber(e.target.value)}
+              className={`${inputClass} font-mono`}
+            />
+          </Field>
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-md bg-gov px-4 py-2.5 font-semibold text-surface disabled:opacity-60"
+            >
+              {busy ? '…' : t.save}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdding(false)}
+              className="rounded-md px-4 py-2.5 text-sm text-ink-soft"
+            >
+              {t.cancel}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <>
+          <button
+            onClick={() => setAdding(true)}
+            className="rounded-md border border-gov px-4 py-2.5 font-semibold text-gov"
+          >
+            + {t.addChild}
+          </button>
+          <p className="mt-2 max-w-prose text-micro text-ink-faint">{t.addChildNote}</p>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * The profile panel.
+ *
+ * Contact details are editable. Identity is not: a facility matches a
+ * person on name, National ID, date of birth and sex, and a self-service
+ * edit there is how someone quietly becomes a different person. They are
+ * SHOWN, so an error can be seen and reported — hiding them would make a
+ * wrong date of birth undiscoverable until it mattered clinically.
+ */
+function ProfilePanel({ lang }: { lang: Lang }) {
+  const t = T[lang];
+  const [profile, setProfile] = useState<CitizenProfile | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const load = () =>
+    citizen
+      .profile()
+      .then((p) => {
+        setProfile(p);
+        setPhone(p.contact.phone ?? '');
+        setEmail(p.contact.email ?? '');
+      })
+      .catch((e) => setError(e instanceof ApiError ? e.message : 'Could not load'));
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await citizen.updateProfile({ phone, email });
+      setEditing(false);
+      setSaved(true);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not save');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!profile) {
+    return error ? (
+      <p role="alert" className="text-sm text-critical">
+        {error}
+      </p>
+    ) : (
+      <p className="text-sm text-ink-faint">…</p>
+    );
+  }
+
+  const id = profile.identity;
+
+  return (
+    <>
+      <h2 className="eyebrow mb-2">{t.yourDetails}</h2>
+
+      {saved && !editing && (
+        <p className="mb-3 rounded-md border border-good/30 bg-good-soft px-3 py-2 text-sm text-good">
+          {t.saved}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="mb-3 rounded-md border border-critical/30 bg-critical-soft px-3 py-2 text-sm text-critical">
+          {error}
+        </p>
+      )}
+
+      {editing ? (
+        <form onSubmit={save} className="mb-6 rounded-lg border border-rule bg-surface p-4">
+          <Field id="pPhone" label={t.phone}>
+            <input
+              id="pPhone"
+              type="tel"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <Field id="pEmail" label={t.email}>
+            <input
+              id="pEmail"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-md bg-gov px-4 py-2.5 font-semibold text-surface disabled:opacity-60"
+            >
+              {busy ? '…' : t.saveChanges}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="rounded-md px-4 py-2.5 text-sm text-ink-soft"
+            >
+              {t.cancel}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <dl className="mb-6 rounded-lg border border-rule bg-surface p-4 text-sm">
+          <div className="mb-2 flex justify-between gap-4">
+            <dt className="text-ink-faint">{t.phone}</dt>
+            <dd className="font-mono">{profile.contact.phone ?? t.notSet}</dd>
+          </div>
+          <div className="mb-3 flex justify-between gap-4">
+            <dt className="text-ink-faint">{t.email}</dt>
+            <dd className="truncate">{profile.contact.email ?? t.notSet}</dd>
+          </div>
+          <button
+            onClick={() => {
+              setSaved(false);
+              setEditing(true);
+            }}
+            className="text-sm font-semibold text-gov underline"
+          >
+            {t.edit}
+          </button>
+        </dl>
+      )}
+
+      {/* Read-only, and said so. */}
+      <h2 className="eyebrow mb-2">{t.cannotChangeHere}</h2>
+      <dl className="rounded-lg border border-rule bg-surface-alt p-4 text-sm">
+        <div className="mb-2 flex justify-between gap-4">
+          <dt className="text-ink-faint">{t.name}</dt>
+          <dd className="text-right">
+            {id.givenName} {id.familyName}
+          </dd>
+        </div>
+        <div className="mb-2 flex justify-between gap-4">
+          <dt className="text-ink-faint">{t.nationalId}</dt>
+          {/* Masked: a citizen knows their own number, and showing it in
+              full only creates a shoulder-surfing target. */}
+          <dd className="font-mono">{id.nationalIdMasked ?? t.notSet}</dd>
+        </div>
+        <div className="mb-2 flex justify-between gap-4">
+          <dt className="text-ink-faint">{t.born}</dt>
+          <dd>{formatDate(id.dateOfBirth, lang)}</dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt className="text-ink-faint">{t.sex}</dt>
+          <dd>{id.sexAtBirth}</dd>
+        </div>
+      </dl>
+      <p className="mt-2 max-w-prose text-micro text-ink-faint">{t.cannotChangeWhy}</p>
+    </>
   );
 }
