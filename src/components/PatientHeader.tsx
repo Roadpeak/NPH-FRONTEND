@@ -1,5 +1,7 @@
 'use client';
 
+import { IconLabel, type IconName } from './icons';
+
 import type { BannerAllergy, BannerMedication, BannerCondition } from './SafetyBanner';
 
 /**
@@ -35,16 +37,20 @@ export interface PatientHeaderProps {
 
 function Column({
   label,
+  icon,
   children,
   tone = 'plain',
 }: {
   label: string;
+  icon: IconName;
   children: React.ReactNode;
   tone?: 'plain' | 'critical';
 }) {
   return (
     <div className="min-w-0 border-t border-rule pt-2 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
-      <p className="eyebrow mb-0.5 whitespace-nowrap">{label}</p>
+      <IconLabel name={icon} className="eyebrow mb-0.5 whitespace-nowrap">
+        {label}
+      </IconLabel>
       <p
         // NOT truncated: a clipped allergy is an allergy nobody reads.
         className={`break-words text-sm ${
@@ -109,19 +115,25 @@ export function PatientHeader({
 
         {/* --- the clinical facts, inline --- */}
         <div className="flex min-w-0 flex-1 flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-6 sm:gap-y-3">
-          <Column label="Allergies" tone={severe.length > 0 ? 'critical' : 'plain'}>
+          <Column
+            label="Allergies"
+            icon="allergy"
+            tone={severe.length > 0 ? 'critical' : 'plain'}
+          >
             {allergies.length === 0 ? (
               <span className="text-ink-faint">None recorded</span>
             ) : (
               <>
                 {/* Form, not only colour. */}
+                {/* The character, not an SVG: it survives a failed icon
+                    font, a text-only reader and a printed record. */}
                 {severe.length > 0 && <span aria-hidden="true">▲ </span>}
                 {allergies.map((a) => a.substanceLabel).join(', ')}
               </>
             )}
           </Column>
 
-          <Column label="Active issues">
+          <Column label="Active issues" icon="condition">
             {chronicConditions.length === 0 ? (
               <span className="text-ink-faint">None recorded</span>
             ) : (
@@ -129,7 +141,7 @@ export function PatientHeader({
             )}
           </Column>
 
-          <Column label="Medications">
+          <Column label="Medications" icon="medication">
             {medications.length === 0 ? (
               <span className="text-ink-faint">None recorded</span>
             ) : (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { Icon } from './icons';
 
 /**
  * Passport photo capture.
@@ -85,7 +86,10 @@ export function PhotoField({ value, onChange, hint }: PhotoFieldProps) {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={value} alt="Your passport photograph" className="h-full w-full object-cover" />
           ) : (
-            <span className="text-micro text-ink-faint">No photo</span>
+            <span className="flex flex-col items-center gap-1 text-micro text-ink-faint">
+              <Icon name="photo" size={20} />
+              No photo
+            </span>
           )}
         </div>
 
@@ -105,6 +109,7 @@ export function PhotoField({ value, onChange, hint }: PhotoFieldProps) {
             htmlFor="photo"
             className="inline-block cursor-pointer rounded-md border border-gov px-4 py-2 text-sm font-semibold text-gov"
           >
+            <Icon name="photo" size={15} className="mr-1.5 -mt-0.5" />
             {busy ? 'Processing…' : value ? 'Change photo' : 'Take or choose a photo'}
           </label>
 

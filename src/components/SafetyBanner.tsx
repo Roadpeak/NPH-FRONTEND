@@ -1,3 +1,5 @@
+import { IconLabel } from './icons';
+
 /**
  * The clinical safety banner.
  *
@@ -67,9 +69,9 @@ export function SafetyBanner({
         <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.8fr)]">
           {/* --- allergies --- */}
           <div>
-            <p className="eyebrow mb-1.5">
+            <IconLabel name="allergy" className="eyebrow mb-1.5">
               Allergies{allergies.length > 0 && ` · ${allergies.length}`}
-            </p>
+            </IconLabel>
             {allergies.length === 0 ? (
               <p className="text-sm text-ink-faint">None recorded</p>
             ) : (
@@ -82,7 +84,9 @@ export function SafetyBanner({
                       className={`chip ${severe ? 'chip-critical' : 'chip-caution'}`}
                       title={a.reaction}
                     >
-                      {/* Form, not just colour. */}
+                      {/* Form, not just colour — and the icon is a fourth
+                          channel beside shape, weight and hue, never a
+                          replacement for them. */}
                       <span aria-hidden="true">{severe ? '▲' : '●'}</span>
                       <span className={severe ? 'font-bold' : ''}>
                         {a.substanceLabel}
@@ -97,9 +101,9 @@ export function SafetyBanner({
 
           {/* --- current medications --- */}
           <div>
-            <p className="eyebrow mb-1.5">
+            <IconLabel name="medication" className="eyebrow mb-1.5">
               Current medications{medications.length > 0 && ` · ${medications.length}`}
-            </p>
+            </IconLabel>
             {medications.length === 0 ? (
               <p className="text-sm text-ink-faint">None recorded</p>
             ) : (
@@ -120,7 +124,9 @@ export function SafetyBanner({
 
           {/* --- chronic + alerts --- */}
           <div>
-            <p className="eyebrow mb-1.5">Chronic &amp; alerts</p>
+            <IconLabel name="condition" className="eyebrow mb-1.5">
+              Chronic &amp; alerts
+            </IconLabel>
             <div className="flex flex-wrap items-center gap-1.5">
               {alerts.map((alert) => (
                 // Pregnancy belongs here, not buried in a problem list — it

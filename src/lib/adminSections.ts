@@ -32,6 +32,8 @@ export type SectionId =
 export interface AdminSection {
   id: SectionId;
   label: string;
+  /** Named by meaning; resolved to a glyph in components/icons.tsx. */
+  icon: string;
   /** What this section is for, in a sentence a new administrator can act on. */
   blurb: string;
   /** Empty means every Ministry role; SUPER_ADMIN always passes. */
@@ -41,6 +43,7 @@ export interface AdminSection {
 export const ADMIN_SECTIONS: AdminSection[] = [
   {
     id: 'overview',
+    icon: 'record',
     label: 'Overview',
     blurb: 'What is waiting for you, and the size of the register.',
     // The portal landing. Every role needs somewhere to arrive.
@@ -48,48 +51,56 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   },
   {
     id: 'citizens',
+    icon: 'citizen',
     label: 'Citizens',
     blurb: 'Population statistics, and a single-citizen lookup for support cases.',
     roles: ['REGISTRAR'],
   },
   {
     id: 'facilities',
+    icon: 'facility',
     label: 'Facilities',
     blurb: 'Approve registrations and read the national facility register.',
     roles: ['REGISTRAR'],
   },
   {
     id: 'workforce',
+    icon: 'clinician',
     label: 'Health workers',
     blurb: 'The national workforce: who is registered, licensed and able to work.',
     roles: ['REGISTRAR'],
   },
   {
     id: 'postings',
+    icon: 'family',
     label: 'Postings',
     blurb: 'Assign staff to public facilities. Private facilities engage their own.',
     roles: ['REGISTRAR'],
   },
   {
     id: 'licences',
+    icon: 'verified',
     label: 'Licences',
     blurb: 'Licences about to lapse. A lapsed licence stops a clinician writing.',
     roles: ['REGISTRAR'],
   },
   {
     id: 'analytics',
+    icon: 'condition',
     label: 'Analytics',
     blurb: 'Disease burden, referral loop closure and workforce distribution.',
     roles: ['ANALYST'],
   },
   {
     id: 'surveillance',
+    icon: 'allergy',
     label: 'Surveillance',
     blurb: 'Notifiable disease signals raised automatically as they are recorded.',
     roles: ['SURVEILLANCE'],
   },
   {
     id: 'audit',
+    icon: 'access',
     label: 'Audit',
     blurb: 'Emergency access awaiting review, and actors whose access is often refused.',
     roles: ['AUDITOR'],

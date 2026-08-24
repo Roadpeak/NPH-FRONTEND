@@ -16,6 +16,7 @@ import {
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { CitizenHeader } from '@/components/CitizenHeader';
+import { Icon, type IconName } from '@/components/icons';
 import { Field, inputClass } from '@/components/PortalShell';
 
 /**
@@ -36,6 +37,14 @@ import { Field, inputClass } from '@/components/PortalShell';
 
 type Tab = 'RECORD' | 'FAMILY' | 'PROFILE' | 'ACCESS';
 type Lang = 'en' | 'sw';
+
+/** One icon per tab, so the row is scannable before it is read. */
+const TAB_ICONS: Record<Tab, IconName> = {
+  RECORD: 'record',
+  FAMILY: 'family',
+  PROFILE: 'citizen',
+  ACCESS: 'access',
+};
 
 const TAB_LABELS: Record<Lang, Record<Tab, string>> = {
   en: { RECORD: 'Record', FAMILY: 'Family', PROFILE: 'Profile', ACCESS: 'Who has seen it' },
@@ -149,6 +158,7 @@ export default function CitizenPage() {
                   : 'border-transparent text-ink-faint hover:text-ink-soft'
               }`}
             >
+              <Icon name={TAB_ICONS[t]} size={14} className="mr-1.5 -mt-0.5" />
               {TAB_LABELS[lang][t]}
             </button>
           ))}
@@ -524,18 +534,25 @@ function FamilyPanel({ lang }: { lang: Lang }) {
               m.child.verified ? 'border-rule bg-surface' : 'border-caution/40 bg-caution-soft'
             }`}
           >
-            <p className="text-sm font-semibold">
+            <p className="inline-flex items-center gap-1.5 text-sm font-semibold">
+              <Icon name="child" size={15} className="text-ink-faint" />
               {m.child.givenName} {m.child.familyName}
             </p>
             <p className="text-micro text-ink-soft">
               {m.child.ageYears} {t.years} · {m.child.displayNumber}
             </p>
             {m.child.verified ? (
-              <p className="mt-1 text-micro text-good">{t.confirmed}</p>
+              <p className="mt-1 inline-flex items-center gap-1 text-micro text-good">
+                <Icon name="confirmed" size={13} />
+                {t.confirmed}
+              </p>
             ) : (
               /* Said in the words a parent needs, not as a status enum. */
               <>
-                <p className="mt-1 text-micro font-semibold text-caution">{t.notConfirmed}</p>
+                <p className="mt-1 inline-flex items-center gap-1 text-micro font-semibold text-caution">
+                  <Icon name="pending" size={13} />
+                  {t.notConfirmed}
+                </p>
                 <p className="text-micro text-ink-soft">{t.confirmedHint}</p>
               </>
             )}
@@ -643,7 +660,8 @@ function FamilyPanel({ lang }: { lang: Lang }) {
             onClick={() => setAdding(true)}
             className="rounded-md border border-gov px-4 py-2.5 font-semibold text-gov"
           >
-            + {t.addChild}
+            <Icon name="child" size={15} className="mr-1.5 -mt-0.5" />
+            {t.addChild}
           </button>
           <p className="mt-2 max-w-prose text-micro text-ink-faint">{t.addChildNote}</p>
         </>
@@ -769,11 +787,17 @@ function ProfilePanel({ lang }: { lang: Lang }) {
       ) : (
         <dl className="mb-6 rounded-lg border border-rule bg-surface p-4 text-sm">
           <div className="mb-2 flex justify-between gap-4">
-            <dt className="text-ink-faint">{t.phone}</dt>
+            <dt className="inline-flex items-center gap-1.5 text-ink-faint">
+              <Icon name="phone" size={14} />
+              {t.phone}
+            </dt>
             <dd className="font-mono">{profile.contact.phone ?? t.notSet}</dd>
           </div>
           <div className="mb-3 flex justify-between gap-4">
-            <dt className="text-ink-faint">{t.email}</dt>
+            <dt className="inline-flex items-center gap-1.5 text-ink-faint">
+              <Icon name="email" size={14} />
+              {t.email}
+            </dt>
             <dd className="truncate">{profile.contact.email ?? t.notSet}</dd>
           </div>
           <button
@@ -798,7 +822,10 @@ function ProfilePanel({ lang }: { lang: Lang }) {
           </dd>
         </div>
         <div className="mb-2 flex justify-between gap-4">
-          <dt className="text-ink-faint">{t.nationalId}</dt>
+          <dt className="inline-flex items-center gap-1.5 text-ink-faint">
+            <Icon name="nationalId" size={14} />
+            {t.nationalId}
+          </dt>
           {/* Masked: a citizen knows their own number, and showing it in
               full only creates a shoulder-surfing target. */}
           <dd className="font-mono">{id.nationalIdMasked ?? t.notSet}</dd>

@@ -1,5 +1,7 @@
 'use client';
 
+import { IconLabel, type IconName } from './icons';
+
 /**
  * The citizen's own identity strip.
  *
@@ -52,11 +54,13 @@ export interface CitizenHeaderProps {
 
 function Column({
   label,
+  icon,
   entries,
   none,
   critical = false,
 }: {
   label: string;
+  icon: IconName;
   entries: CitizenHeaderItem[];
   none: string;
   critical?: boolean;
@@ -65,7 +69,11 @@ function Column({
 
   return (
     <div className="min-w-0 border-t border-rule pt-2 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
-      <p className="eyebrow mb-0.5">{label}</p>
+      {/* The icon is an anchor, not the message: the words beside it carry
+          the meaning, for a reader who cannot decode a pictogram. */}
+      <IconLabel name={icon} className="eyebrow mb-0.5">
+        {label}
+      </IconLabel>
       <p
         className={`break-words text-sm ${severe ? 'font-semibold text-critical' : 'text-ink'}`}
       >
@@ -75,6 +83,9 @@ function Column({
           <>
             {/* Form as well as colour — a shared handset in daylight loses
                 hue long before it loses shape. */}
+            {/* The character, not an SVG: it survives a failed icon
+                font, a text-only reader and a printed record, and beside
+                the heading's icon a second glyph reads as a fault. */}
             {severe && <span aria-hidden="true">▲ </span>}
             {entries.map((e) => e.title).join(', ')}
           </>
@@ -131,17 +142,20 @@ export function CitizenHeader({
         <div className="flex min-w-0 flex-1 flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-6 sm:gap-y-3">
           <Column
             label={labels.harmful}
+            icon="allergy"
             entries={items.filter((i) => i.kind === 'ALLERGY')}
             none={labels.none}
             critical
           />
           <Column
             label={labels.longTerm}
+            icon="condition"
             entries={items.filter((i) => i.kind === 'CHRONIC')}
             none={labels.none}
           />
           <Column
             label={labels.medicines}
+            icon="medication"
             entries={medicines.map((m) => ({
               kind: 'MEDICATION' as const,
               title: m.name,

@@ -25,6 +25,7 @@ import {
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { sectionsFor, type SectionId } from '@/lib/adminSections';
+import { Icon, type IconName } from '@/components/icons';
 import { inputClass } from '@/components/PortalShell';
 
 /**
@@ -133,6 +134,7 @@ export default function AdminPage() {
                   : 'border border-rule text-ink-soft hover:bg-surface'
               }`}
             >
+              <Icon name={s.icon as IconName} size={14} className="mr-1.5 -mt-0.5" />
               {s.label}
             </button>
           ))}

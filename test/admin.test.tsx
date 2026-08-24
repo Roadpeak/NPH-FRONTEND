@@ -23,27 +23,33 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-const authStub = { me: vi.fn<() => Promise<any>>() };
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const adminStub = {
-  overview: vi.fn<() => Promise<any>>(),
-  searchPractitioners: vi.fn<(q: string) => Promise<any[]>>(async () => []),
-  facilityStats: vi.fn<() => Promise<any>>(),
-  workforceStats: vi.fn<() => Promise<any>>(),
-  citizenStats: vi.fn<() => Promise<any>>(),
-  practitioners: vi.fn<(p?: any) => Promise<any>>(),
-  lookupCitizen: vi.fn<(id: string) => Promise<any>>(),
-  searchFacilities: vi.fn<(q: string) => Promise<any[]>>(async () => []),
-  pendingFacilities: vi.fn<() => Promise<any[]>>(async () => []),
-  facilities: vi.fn<() => Promise<any[]>>(async () => []),
-  approveFacility: vi.fn<(id: string) => Promise<any>>(),
-  postStaff: vi.fn<(b: any) => Promise<any>>(),
+/*
+ * Stubs are typed from the real client, so a change to an API shape breaks
+ * these tests rather than letting them assert against a fiction.
+ */
+type Admin = typeof import('@/lib/api')['admin'];
+type Auth = typeof import('@/lib/api')['auth'];
+
+const authStub = { me: vi.fn<Auth['me']>() };
+const adminStub: { [K in keyof Admin]: ReturnType<typeof vi.fn> } = {
+  overview: vi.fn(),
+  searchPractitioners: vi.fn(async () => []),
+  facilityStats: vi.fn(),
+  workforceStats: vi.fn(),
+  citizenStats: vi.fn(),
+  practitioners: vi.fn(),
+  lookupCitizen: vi.fn(),
+  searchFacilities: vi.fn(async () => []),
+  pendingFacilities: vi.fn(async () => []),
+  facilities: vi.fn(async () => []),
+  approveFacility: vi.fn(),
+  postStaff: vi.fn(),
   endPosting: vi.fn(),
-  expiringLicences: vi.fn<(days?: number) => Promise<any[]>>(async () => []),
-  pendingBreakGlass: vi.fn<() => Promise<any[]>>(async () => []),
-  reviewBreakGlass: vi.fn<(id: string, outcome: string, note?: string) => Promise<any>>(),
-  breakGlassRates: vi.fn<() => Promise<any[]>>(async () => []),
-  anomalies: vi.fn<() => Promise<any[]>>(async () => []),
+  expiringLicences: vi.fn(async () => []),
+  pendingBreakGlass: vi.fn(async () => []),
+  reviewBreakGlass: vi.fn(),
+  breakGlassRates: vi.fn(async () => []),
+  anomalies: vi.fn(async () => []),
 };
 const ministryStub = { counties: vi.fn(async () => [{ id: 'c1', code: '042', name: 'Kisumu' }]) };
 
