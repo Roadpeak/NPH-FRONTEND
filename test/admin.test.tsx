@@ -28,6 +28,11 @@ const authStub = { me: vi.fn<() => Promise<any>>() };
 const adminStub = {
   overview: vi.fn<() => Promise<any>>(),
   searchPractitioners: vi.fn<(q: string) => Promise<any[]>>(async () => []),
+  facilityStats: vi.fn<() => Promise<any>>(),
+  workforceStats: vi.fn<() => Promise<any>>(),
+  citizenStats: vi.fn<() => Promise<any>>(),
+  practitioners: vi.fn<(p?: any) => Promise<any>>(),
+  lookupCitizen: vi.fn<(id: string) => Promise<any>>(),
   searchFacilities: vi.fn<(q: string) => Promise<any[]>>(async () => []),
   pendingFacilities: vi.fn<() => Promise<any[]>>(async () => []),
   facilities: vi.fn<() => Promise<any[]>>(async () => []),
@@ -86,8 +91,45 @@ function signedInAs(role: string) {
   adminStub.overview.mockResolvedValue(overviewFor(role));
 }
 
+const FACILITY_STATS = {
+  total: 6,
+  byStatus: [{ status: 'ACTIVE', count: 5 }, { status: 'PENDING', count: 1 }],
+  byKephLevel: [{ kephLevel: 2, count: 2 }, { kephLevel: 4, count: 3 }],
+  byOwnership: [
+    { ownership: 'PUBLIC_MOH', count: 4 },
+    { ownership: 'PRIVATE_FOR_PROFIT', count: 1 },
+  ],
+  byCounty: [{ countyId: 'c1', count: 5 }],
+  activeWithoutCapabilities: 2,
+};
+
+const WORKFORCE_STATS = {
+  total: 12,
+  byCadre: [{ cadre: 'NURSE', count: 7 }, { cadre: 'DOCTOR', count: 5 }],
+  byStatus: [{ status: 'ACTIVE', count: 12 }],
+  byCounty: [{ countyId: 'c1', count: 12 }],
+  withActiveLicence: 11,
+  withActiveAffiliation: 9,
+  unaffiliated: 3,
+};
+
+const CITIZEN_STATS = {
+  total: 2431,
+  registeredThisMonth: 182,
+  byCounty: [{ countyId: 'c1', count: 2431 }],
+  byMaturity: [{ maturity: 'ADULT', count: 1700 }, { maturity: 'DEPENDANT', count: 731 }],
+  byVerification: [{ state: 'VERIFIED', count: 1600 }, { state: 'UNVERIFIED', count: 831 }],
+  bySex: [{ sex: 'FEMALE', count: 1300 }, { sex: 'MALE', count: 1131 }],
+  notAlive: 4,
+};
+
 beforeEach(() => {
   signedInAs('SUPER_ADMIN');
+  adminStub.facilityStats.mockResolvedValue(FACILITY_STATS);
+  adminStub.workforceStats.mockResolvedValue(WORKFORCE_STATS);
+  adminStub.citizenStats.mockResolvedValue(CITIZEN_STATS);
+  adminStub.practitioners.mockResolvedValue({ total: 0, rows: [] });
+  adminStub.lookupCitizen.mockResolvedValue({ match: null });
   adminStub.pendingFacilities.mockResolvedValue([]);
   adminStub.pendingBreakGlass.mockResolvedValue([]);
   adminStub.expiringLicences.mockResolvedValue([]);
@@ -234,9 +276,14 @@ describe('the facility approval queue', () => {
     // Master Health Facility List.
     expect(screen.getByText(/MFL-12345/)).toBeInTheDocument();
     expect(screen.getByText(/KEPH 3/)).toBeInTheDocument();
-    expect(screen.getByText(/Kisumu/)).toBeInTheDocument();
-    // Ownership decides who may staff it for the rest of its life.
-    expect(screen.getByText(/private for profit/i)).toBeInTheDocument();
+    // Scoped to the queue row: "Kisumu" also appears in the by-county
+    // distribution further down the page.
+    expect(screen.getByText(/MFL-12345 · KEPH 3 · Kisumu/)).toBeInTheDocument();
+    // Ownership decides who may staff it for the rest of its life. Scoped
+    // to the queue row — it also appears in the by-ownership distribution.
+    expect(
+      screen.getAllByText(/private for profit/i).length,
+    ).toBeGreaterThan(0);
   });
 
   it('approves and removes the facility from the queue', async () => {
@@ -593,5 +640,209 @@ describe('staff postings', () => {
     // Below three characters a licence search would return the register.
     await new Promise((r) => setTimeout(r, 350));
     expect(adminStub.searchPractitioners).not.toHaveBeenCalled();
+  });
+});
+
+describe('the registers', () => {
+  describe('citizens', () => {
+    it('shows population statistics', async () => {
+      await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Citizens' }));
+
+      expect(await screen.findByText(/population register/i)).toBeInTheDocument();
+      // Appears in the total tile and again in the by-county bar.
+      expect(screen.getAllByText('2,431').length).toBeGreaterThan(0);
+      expect(screen.getByText(/registered this month/i)).toBeInTheDocument();
+      // The number an administrator is actually working to move.
+      expect(screen.getByText(/the gap to close/i)).toBeInTheDocument();
+    });
+
+    it('THE NO-LIST RULE — offers a lookup, never a browsable register', async () => {
+      const { container } = await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Citizens' }));
+      await screen.findByText(/population register/i);
+
+      // A browsable register of every citizen in Kenya is the single
+      // highest-value target in the country. The screen must not offer one,
+      // and the endpoint behind it does not exist.
+      expect(screen.getByText(/there is no way to browse the register/i)).toBeInTheDocument();
+      expect(container.textContent).not.toMatch(/NHP-[A-Z0-9]{4}/);
+    });
+
+    it('warns that the lookup is shown to the citizen, BEFORE searching', async () => {
+      await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Citizens' }));
+
+      // An administrative power the subject cannot see is the one that gets
+      // abused. Saying so after the fact is too late to deter anything.
+      expect(
+        await screen.findByText(/recorded and shown to that citizen/i),
+      ).toBeInTheDocument();
+    });
+
+    it('refuses to search on a partial identifier', async () => {
+      await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Citizens' }));
+      await screen.findByText(/population register/i);
+
+      await userEvent.type(screen.getByLabelText(/national id or nhp number/i), '81');
+      // A prefix search would turn a lookup into a listing, one keystroke
+      // at a time.
+      expect(screen.getByRole('button', { name: /look up/i })).toBeDisabled();
+      expect(adminStub.lookupCitizen).not.toHaveBeenCalled();
+    });
+
+    it('shows one citizen, and says clinical data is out of reach', async () => {
+      adminStub.lookupCitizen.mockResolvedValue({
+        match: {
+          id: 'p1',
+          displayNumber: 'NHP-AB12-CD34',
+          givenName: 'Wanjiku',
+          familyName: 'Kamau',
+          dateOfBirth: '1994-06-15',
+          maturity: 'ADULT',
+          sexAtBirth: 'FEMALE',
+          verificationState: 'VERIFIED',
+        },
+      });
+
+      await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Citizens' }));
+      await screen.findByText(/population register/i);
+
+      await userEvent.type(screen.getByLabelText(/national id or nhp number/i), '12345678');
+      await userEvent.click(screen.getByRole('button', { name: /look up/i }));
+
+      expect(await screen.findByText('Wanjiku Kamau')).toBeInTheDocument();
+      // Stated on the screen most easily mistaken for a patient record.
+      expect(
+        screen.getByText(/no Ministry role can read clinical data/i),
+      ).toBeInTheDocument();
+    });
+
+    it('says plainly when nobody holds that identifier', async () => {
+      adminStub.lookupCitizen.mockResolvedValue({ match: null });
+      await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Citizens' }));
+      await screen.findByText(/population register/i);
+
+      await userEvent.type(screen.getByLabelText(/national id or nhp number/i), '00000000');
+      await userEvent.click(screen.getByRole('button', { name: /look up/i }));
+
+      expect(await screen.findByText(/no citizen holds that identifier/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('health workers', () => {
+    it('separates registered from able to work', async () => {
+      await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Health workers' }));
+
+      expect(await screen.findByText(/the workforce/i)).toBeInTheDocument();
+      // The number that matters: registered is not the same as able to
+      // treat anyone.
+      expect(screen.getByText(/registered but cannot treat a patient/i)).toBeInTheDocument();
+      expect(screen.getAllByText('12').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('3').length).toBeGreaterThan(0);
+    });
+
+    it('breaks the workforce down by cadre', async () => {
+      await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Health workers' }));
+
+      expect(await screen.findByText(/by cadre/i)).toBeInTheDocument();
+      expect(screen.getByText('nurse')).toBeInTheDocument();
+      expect(screen.getByText('doctor')).toBeInTheDocument();
+    });
+
+    it('marks an unposted clinician rather than leaving the cell blank', async () => {
+      adminStub.practitioners.mockResolvedValue({
+        total: 1,
+        rows: [
+          {
+            practitionerId: 'pr1',
+            cadre: 'NURSE',
+            status: 'ACTIVE',
+            countyId: 'c1',
+            registeredAt: '2026-08-01T00:00:00.000Z',
+            licence: {
+              regulator: 'NCK',
+              licenceNumber: 'NCK/2026/0038',
+              status: 'ACTIVE',
+              expiresOn: '2027-01-01',
+            },
+            facilities: [],
+          },
+        ],
+      });
+
+      await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Health workers' }));
+
+      // An unposted clinician is exactly what a registrar is scanning for;
+      // a blank cell reads as missing data. Asserted on the table cell,
+      // since the tile above also says "Not posted anywhere".
+      expect(await screen.findByText('NCK/2026/0038')).toBeInTheDocument();
+      const cell = screen
+        .getAllByText(/^Not posted$/i)
+        .find((el) => el.closest('td') !== null);
+      expect(cell).toBeTruthy();
+    });
+
+    it('carries no patient identity for a clinician', async () => {
+      adminStub.practitioners.mockResolvedValue({
+        total: 1,
+        rows: [
+          {
+            practitionerId: 'pr1',
+            cadre: 'NURSE',
+            status: 'ACTIVE',
+            countyId: 'c1',
+            registeredAt: '2026-08-01T00:00:00.000Z',
+            licence: null,
+            facilities: ['Migosi Health Centre'],
+          },
+        ],
+      });
+
+      const { container } = await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Health workers' }));
+      await screen.findByText(/migosi health centre/i);
+
+      // A clinician is also a person with a health record. Showing their
+      // NHP number here would link the two for anyone reading the page.
+      expect(container.textContent).not.toMatch(/NHP-[A-Z0-9]{4}/);
+    });
+  });
+
+  describe('facilities', () => {
+    it('shows the national register alongside the approval queue', async () => {
+      await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Facilities' }));
+
+      expect(await screen.findByText(/the national register/i)).toBeInTheDocument();
+      expect(screen.getByText(/by keph level/i)).toBeInTheDocument();
+      expect(screen.getByText(/by ownership/i)).toBeInTheDocument();
+    });
+
+    it('surfaces active facilities that can never be recommended', async () => {
+      await renderAs('REGISTRAR');
+      await userEvent.click(screen.getByRole('button', { name: 'Facilities' }));
+
+      // Registered but invisible to care routing: a patient will never be
+      // sent there, and nobody at the facility knows.
+      expect(
+        await screen.findByText(/cannot be recommended to a patient/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('shows none of the three registers to an analyst', async () => {
+    await renderAs('ANALYST');
+    const tabs = screen.getAllByRole('button').map((b) => b.textContent?.trim());
+
+    for (const label of ['Citizens', 'Facilities', 'Health workers']) {
+      expect(tabs, label).not.toContain(label);
+    }
   });
 });

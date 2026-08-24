@@ -17,6 +17,11 @@ import {
   type CountyRef,
   type PractitionerHit,
   type FacilityHit,
+  type CitizenStats,
+  type CitizenLookupResult,
+  type WorkforceStats,
+  type PractitionerRow,
+  type FacilityStats,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { sectionsFor, type SectionId } from '@/lib/adminSections';
@@ -138,7 +143,9 @@ export default function AdminPage() {
         ) : (
           <>
             {section === 'overview' && <Overview data={overview} role={role} />}
+            {section === 'citizens' && <Citizens nameOfCounty={nameOfCounty} />}
             {section === 'facilities' && <Facilities nameOfCounty={nameOfCounty} />}
+            {section === 'workforce' && <Workforce nameOfCounty={nameOfCounty} />}
             {section === 'postings' && <Postings />}
             {section === 'licences' && <Licences />}
             {section === 'audit' && <Audit />}
@@ -280,6 +287,7 @@ function Overview({ data, role }: { data: AdminOverview | null; role: string | n
 
 function Facilities({ nameOfCounty }: { nameOfCounty: (id: string) => string }) {
   const [pending, setPending] = useState<PendingFacility[] | null>(null);
+  const [stats, setStats] = useState<FacilityStats | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -294,6 +302,7 @@ function Facilities({ nameOfCounty }: { nameOfCounty: (id: string) => string }) 
 
   useEffect(() => {
     load();
+    admin.facilityStats().then(setStats).catch(() => setStats(null));
   }, []);
 
   async function approve(id: string) {
@@ -356,6 +365,381 @@ function Facilities({ nameOfCounty }: { nameOfCounty: (id: string) => string }) 
         An unapproved facility can grant no affiliation and host no check-in,
         so no patient record can be opened there.
       </p>
+
+      {stats && (
+        <>
+          <hr className="my-6 border-rule" />
+          <h2 className="eyebrow mb-2">The national register</h2>
+
+          <div className="mb-6 grid gap-3 sm:grid-cols-3">
+            <Tile
+              label="Registered facilities"
+              value={stats.total}
+              hint="Every status"
+            />
+            <Tile
+              label="Active"
+              value={stats.byStatus.find((x) => x.status === 'ACTIVE')?.count ?? 0}
+              hint="Approved and able to host care"
+            />
+            <Tile
+              label="No declared services"
+              value={stats.activeWithoutCapabilities}
+              // Registered but invisible to care routing: a patient will
+              // never be sent here, and nobody at the facility knows.
+              hint="Active, but cannot be recommended to a patient"
+              urgent
+            />
+          </div>
+
+          <div className="grid gap-x-8 lg:grid-cols-2">
+            <Distribution
+              title="By KEPH level"
+              rows={stats.byKephLevel.map((k) => ({
+                label: `Level ${k.kephLevel}`,
+                count: k.count,
+              }))}
+              note="Level 2 is a dispensary; level 6 a national referral hospital."
+            />
+            <Distribution
+              title="By ownership"
+              rows={stats.byOwnership.map((o) => ({ label: pretty(o.ownership), count: o.count }))}
+              note="Ownership decides who staffs each one: the Ministry posts to public facilities, private ones engage their own."
+            />
+          </div>
+
+          <Distribution
+            title="By county"
+            rows={stats.byCounty.slice(0, 10).map((c) => ({
+              label: nameOfCounty(c.countyId),
+              count: c.count,
+            }))}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+/** A labelled distribution bar, for the register breakdowns. */
+function Distribution({
+  title,
+  rows,
+  note,
+}: {
+  title: string;
+  rows: Array<{ label: string; count: number }>;
+  note?: string;
+}) {
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  if (rows.length === 0) return null;
+
+  return (
+    <div>
+      <h3 className="eyebrow mb-2">{title}</h3>
+      <ul className="mb-4 space-y-1">
+        {rows.map((r) => (
+          <li key={r.label} className="flex items-center gap-3">
+            <span className="w-36 shrink-0 truncate text-sm">{r.label}</span>
+            <span className="h-3.5 flex-1 overflow-hidden rounded-sm bg-rule-soft">
+              <span
+                className="block h-full bg-gov/70"
+                style={{ width: `${(r.count / max) * 100}%` }}
+              />
+            </span>
+            <span className="w-16 shrink-0 text-right font-mono text-sm tabular">
+              {r.count.toLocaleString()}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {note && <p className="mb-4 max-w-prose text-micro text-ink-faint">{note}</p>}
+    </div>
+  );
+}
+
+const pretty = (s: string) => s.replace(/_/g, ' ').toLowerCase();
+
+/**
+ * The population register.
+ *
+ * Statistics, and a lookup for ONE citizen. There is deliberately no list:
+ * a browsable register of every citizen in Kenya would be the single
+ * highest-value target in the country, and the defence is that the
+ * endpoint does not exist rather than that a screen declines to call it.
+ */
+function Citizens({ nameOfCounty }: { nameOfCounty: (id: string) => string }) {
+  const [stats, setStats] = useState<CitizenStats | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [identifier, setIdentifier] = useState('');
+  const [result, setResult] = useState<CitizenLookupResult['match'] | 'NONE' | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    admin
+      .citizenStats()
+      .then(setStats)
+      .catch((e) => {
+        setError(e instanceof ApiError ? e.message : 'Could not load');
+        setStats(null);
+      });
+  }, []);
+
+  async function lookup(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setLookupError(null);
+    setResult(null);
+    try {
+      const res = await admin.lookupCitizen(identifier);
+      setResult(res.match ?? 'NONE');
+    } catch (e) {
+      setLookupError(e instanceof ApiError ? e.message : 'Could not look up');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const verified = stats?.byVerification.find((v) => v.state === 'VERIFIED')?.count ?? 0;
+
+  return (
+    <>
+      <h2 className="eyebrow mb-2">Population register</h2>
+
+      {error && (
+        <p role="alert" className="mb-4 rounded-md border border-critical/30 bg-critical-soft px-3 py-2 text-sm text-critical">
+          {error}
+        </p>
+      )}
+
+      {stats && (
+        <>
+          <div className="mb-6 grid gap-3 sm:grid-cols-3">
+            <Tile
+              label="Registered citizens"
+              value={stats.total}
+              hint="Holding a health record"
+            />
+            <Tile
+              label="Registered this month"
+              value={stats.registeredThisMonth}
+              hint="New records opened"
+            />
+            <Tile
+              label="Identity verified"
+              value={verified}
+              hint={
+                stats.total > 0
+                  ? `${Math.round((verified / stats.total) * 100)}% — the gap to close`
+                  : 'No records yet'
+              }
+            />
+          </div>
+
+          <div className="grid gap-x-8 lg:grid-cols-2">
+            <Distribution
+              title="By county"
+              rows={stats.byCounty.slice(0, 10).map((c) => ({
+                label: nameOfCounty(c.countyId),
+                count: c.count,
+              }))}
+            />
+            <div>
+              <Distribution
+                title="By maturity"
+                rows={stats.byMaturity.map((m) => ({ label: pretty(m.maturity), count: m.count }))}
+                note="A dependant is a child tied to a guardian. At 18 the record is promoted, keeping its history."
+              />
+              <Distribution
+                title="By verification"
+                rows={stats.byVerification.map((v) => ({ label: pretty(v.state), count: v.count }))}
+                note="An unverified person still has a record, but a facility cannot trust the ID they present."
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      <hr className="my-6 border-rule" />
+
+      <h2 className="eyebrow mb-2">Look up one citizen</h2>
+      <p className="mb-4 max-w-prose text-sm text-ink-soft">
+        For a support case. An exact National ID or NHP number returns one
+        person — there is no way to browse the register.
+      </p>
+
+      <form onSubmit={lookup} className="max-w-md">
+        <label htmlFor="cid" className="eyebrow mb-1.5 block">
+          National ID or NHP number
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="cid"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder="12345678 or NHP-XXXX-XXXX"
+            className={`${inputClass} font-mono`}
+          />
+          <button
+            type="submit"
+            disabled={busy || identifier.trim().length < 4}
+            className="shrink-0 rounded-md bg-gov px-4 py-2.5 font-semibold text-surface disabled:opacity-60"
+          >
+            {busy ? 'Looking…' : 'Look up'}
+          </button>
+        </div>
+        {/* Said before the search, not after. An administrative power the
+            subject cannot see is the one that gets abused. */}
+        <p className="mt-2 text-micro text-caution">
+          This lookup is recorded and shown to that citizen on their own
+          access screen.
+        </p>
+      </form>
+
+      {lookupError && (
+        <p role="alert" className="mt-4 max-w-md rounded-md border border-critical/30 bg-critical-soft px-3 py-2 text-sm text-critical">
+          {lookupError}
+        </p>
+      )}
+
+      {result === 'NONE' && (
+        <p className="mt-4 text-sm text-ink-faint">
+          No citizen holds that identifier.
+        </p>
+      )}
+
+      {result && result !== 'NONE' && (
+        <div className="mt-4 max-w-md rounded-lg border border-rule bg-surface px-4 py-3">
+          <p className="font-semibold">
+            {result.givenName} {result.familyName}
+          </p>
+          <p className="font-mono text-micro text-ink-faint">{result.displayNumber}</p>
+          <dl className="mt-2 grid grid-cols-2 gap-1 text-sm">
+            <dt className="text-ink-faint">Date of birth</dt>
+            <dd>{new Date(result.dateOfBirth).toLocaleDateString('en-GB')}</dd>
+            <dt className="text-ink-faint">Maturity</dt>
+            <dd>{pretty(result.maturity)}</dd>
+            <dt className="text-ink-faint">Verification</dt>
+            <dd>{pretty(result.verificationState)}</dd>
+          </dl>
+          {/* The boundary, stated on the screen that could most easily be
+              mistaken for a patient record. */}
+          <p className="mt-3 border-t border-rule-soft pt-2 text-micro text-ink-faint">
+            Registration details only. No Ministry role can read clinical
+            data.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** The national workforce: registered, licensed, and able to work. */
+function Workforce({ nameOfCounty }: { nameOfCounty: (id: string) => string }) {
+  const [stats, setStats] = useState<WorkforceStats | null>(null);
+  const [list, setList] = useState<PractitionerRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([admin.workforceStats(), admin.practitioners()])
+      .then(([s, l]) => {
+        setStats(s);
+        setList(l.rows);
+      })
+      .catch((e) => {
+        setError(e instanceof ApiError ? e.message : 'Could not load');
+        setList([]);
+      });
+  }, []);
+
+  if (error) {
+    return (
+      <p role="alert" className="rounded-md border border-critical/30 bg-critical-soft px-3 py-2 text-sm text-critical">
+        {error}
+      </p>
+    );
+  }
+  if (!stats || !list) return <p className="text-sm text-ink-faint">Loading…</p>;
+
+  return (
+    <>
+      <h2 className="eyebrow mb-2">The workforce</h2>
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        <Tile label="Registered" value={stats.total} hint="Holding a professional registration" />
+        <Tile
+          label="With an active licence"
+          value={stats.withActiveLicence}
+          hint="Licence current and unexpired"
+        />
+        <Tile
+          label="Not posted anywhere"
+          value={stats.unaffiliated}
+          // The distinction that matters: registered is not the same as
+          // able to treat anyone.
+          hint="Registered but cannot treat a patient"
+          urgent
+        />
+      </div>
+
+      <div className="grid gap-x-8 lg:grid-cols-2">
+        <Distribution
+          title="By cadre"
+          rows={stats.byCadre.map((c) => ({ label: pretty(c.cadre), count: c.count }))}
+        />
+        <Distribution
+          title="By county"
+          rows={stats.byCounty.slice(0, 10).map((c) => ({
+            label: nameOfCounty(c.countyId),
+            count: c.count,
+          }))}
+          note="Derived from where each clinician registered, not where they are posted."
+        />
+      </div>
+
+      <h3 className="eyebrow mb-2 mt-4">Recently registered</h3>
+      {list.length === 0 ? (
+        <p className="text-sm text-ink-faint">No practitioners registered.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                {['Cadre', 'Licence', 'Posted at', 'Status'].map((h) => (
+                  <th
+                    key={h}
+                    className="pb-2 text-left font-mono text-label uppercase tracking-wider text-ink-faint"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((p) => (
+                <tr key={p.practitionerId} className="border-t border-rule-soft">
+                  <td className="py-2">{pretty(p.cadre)}</td>
+                  <td className="py-2 font-mono text-micro">
+                    {p.licence?.licenceNumber ?? '—'}
+                  </td>
+                  <td className="py-2">
+                    {p.facilities.length > 0 ? (
+                      p.facilities.join(', ')
+                    ) : (
+                      /* Not a blank: an unposted clinician is the thing a
+                         registrar is looking for on this screen. */
+                      <span className="text-caution">Not posted</span>
+                    )}
+                  </td>
+                  <td className="py-2 font-mono text-micro">{pretty(p.status)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }

@@ -20,7 +20,9 @@ export type MinistryRole =
 
 export type SectionId =
   | 'overview'
+  | 'citizens'
   | 'facilities'
+  | 'workforce'
   | 'postings'
   | 'licences'
   | 'analytics'
@@ -45,9 +47,21 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     roles: [],
   },
   {
+    id: 'citizens',
+    label: 'Citizens',
+    blurb: 'Population statistics, and a single-citizen lookup for support cases.',
+    roles: ['REGISTRAR'],
+  },
+  {
     id: 'facilities',
     label: 'Facilities',
     blurb: 'Approve registrations and read the national facility register.',
+    roles: ['REGISTRAR'],
+  },
+  {
+    id: 'workforce',
+    label: 'Health workers',
+    blurb: 'The national workforce: who is registered, licensed and able to work.',
     roles: ['REGISTRAR'],
   },
   {

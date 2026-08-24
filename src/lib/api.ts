@@ -387,8 +387,85 @@ export interface FacilityHit {
   countyId: string;
 }
 
+export interface FacilityStats {
+  total: number;
+  byStatus: Array<{ status: string; count: number }>;
+  byKephLevel: Array<{ kephLevel: number; count: number }>;
+  byOwnership: Array<{ ownership: string; count: number }>;
+  byCounty: Array<{ countyId: string; count: number }>;
+  /** Registered but invisible to care routing. */
+  activeWithoutCapabilities: number;
+}
+
+export interface WorkforceStats {
+  total: number;
+  byCadre: Array<{ cadre: string; count: number }>;
+  byStatus: Array<{ status: string; count: number }>;
+  byCounty: Array<{ countyId: string; count: number }>;
+  withActiveLicence: number;
+  withActiveAffiliation: number;
+  /** Registered but unable to treat anyone. */
+  unaffiliated: number;
+}
+
+export interface PractitionerRow {
+  practitionerId: string;
+  cadre: string;
+  status: string;
+  countyId: string;
+  registeredAt: string;
+  licence: { regulator: string; licenceNumber: string; status: string; expiresOn: string } | null;
+  facilities: string[];
+}
+
+export interface CitizenStats {
+  total: number;
+  registeredThisMonth: number;
+  byCounty: Array<{ countyId: string; count: number }>;
+  byMaturity: Array<{ maturity: string; count: number }>;
+  byVerification: Array<{ state: string; count: number }>;
+  bySex: Array<{ sex: string; count: number }>;
+  notAlive: number;
+}
+
+export interface CitizenLookupResult {
+  match: {
+    id: string;
+    displayNumber: string;
+    givenName: string;
+    familyName: string;
+    dateOfBirth: string;
+    maturity: string;
+    sexAtBirth: string;
+    verificationState: string;
+  } | null;
+}
+
 export const admin = {
   overview: () => api.get<AdminOverview>('/admin/overview'),
+
+  facilityStats: () => api.get<FacilityStats>('/admin/facilities/stats'),
+  workforceStats: () => api.get<WorkforceStats>('/admin/practitioners/stats'),
+  citizenStats: () => api.get<CitizenStats>('/admin/citizens/stats'),
+
+  practitioners: (params?: { cadre?: string; skip?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.cadre) q.set('cadre', params.cadre);
+    if (params?.skip) q.set('skip', String(params.skip));
+    const query = q.toString();
+    return api.get<{ total: number; rows: PractitionerRow[] }>(
+      `/admin/practitioners${query ? `?${query}` : ''}`,
+    );
+  },
+
+  /**
+   * ONE citizen, by exact identifier. There is no listing endpoint, and
+   * every successful lookup is written to that citizen's own access log.
+   */
+  lookupCitizen: (identifier: string) =>
+    api.get<CitizenLookupResult>(
+      `/admin/citizens/lookup?identifier=${encodeURIComponent(identifier)}`,
+    ),
 
   searchPractitioners: (q: string) =>
     api.get<PractitionerHit[]>(`/admin/practitioners/search?q=${encodeURIComponent(q)}`),
