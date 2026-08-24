@@ -14,6 +14,7 @@ import {
   type KeyResult,
   type ProcedureRecord,
 } from '@/lib/api';
+import { PORTALS } from '@/lib/portals';
 
 /**
  * The clinician's patient summary.
@@ -66,7 +67,7 @@ export default function PatientSummaryPage({
     (async () => {
       try {
         if (!hasSession() && !(await restoreSession())) {
-          router.replace('/login');
+          router.replace(PORTALS.worker.signInPath);
           return;
         }
         if (cancelled) return;
@@ -89,7 +90,7 @@ export default function PatientSummaryPage({
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && (err.code === 'MFA_REQUIRED' || err.code === 'NO_SESSION')) {
-          router.replace('/login?reason=mfa');
+          router.replace(`${PORTALS.worker.signInPath}?reason=mfa`);
           return;
         }
         setLoadError(

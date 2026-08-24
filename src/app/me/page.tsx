@@ -11,6 +11,7 @@ import {
   type CitizenVisit,
   type AccessEntry,
 } from '@/lib/api';
+import { PORTALS } from '@/lib/portals';
 
 /**
  * The citizen timeline.
@@ -59,7 +60,7 @@ export default function CitizenPage() {
     (async () => {
       try {
         if (!hasSession() && !(await restoreSession())) {
-          router.replace('/login');
+          router.replace(PORTALS.citizen.signInPath);
           return;
         }
         const [s, v, a] = await Promise.all([
@@ -74,7 +75,7 @@ export default function CitizenPage() {
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && err.code === 'NO_SESSION') {
-          router.replace('/login');
+          router.replace(PORTALS.citizen.signInPath);
           return;
         }
         setError(err instanceof ApiError ? err.message : 'Could not load your record');

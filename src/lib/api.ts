@@ -224,6 +224,86 @@ export interface LoginResult {
   sentTo?: string;
 }
 
+/** What every registration form collects about a person. */
+export interface RegisterPersonInput {
+  nationalId: string;
+  phone: string;
+  email?: string;
+  givenName: string;
+  middleName?: string;
+  familyName: string;
+  sexAtBirth: 'MALE' | 'FEMALE' | 'INTERSEX';
+  /** ISO date, as the form's date input produces it. */
+  dateOfBirth: string;
+  countyId: string;
+  subcountyId: string;
+  password: string;
+}
+
+export interface CountyOption {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface SubcountyOption {
+  id: string;
+  name: string;
+  kind: string;
+}
+
+/**
+ * Registration.
+ *
+ * None of these return a session. The client signs in through the normal
+ * path afterwards, so there is exactly one way to obtain a token — a second
+ * path would be a second place for an authentication bug to live.
+ */
+export const register = {
+  citizen: (input: RegisterPersonInput) =>
+    api.post<{ nhpId: string; message: string }>('/auth/register/citizen', input),
+
+  practitioner: (
+    input: RegisterPersonInput & {
+      cadre: string;
+      licenceNumber: string;
+      regulator?: string;
+    },
+  ) =>
+    api.post<{
+      nhpId: string;
+      practitionerId: string;
+      licenceNumber: string | null;
+      verification: unknown;
+      message: string;
+    }>('/auth/register/practitioner', input),
+
+  facility: (input: {
+    mflCode: string;
+    name: string;
+    kephLevel: number;
+    ownership: string;
+    countyId: string;
+    subcountyId: string;
+    locality?: string;
+    latitude: number;
+    longitude: number;
+  }) =>
+    api.post<{
+      facilityId: string;
+      mflCode: string;
+      registrationStatus: string;
+      message: string;
+    }>('/facilities/register', input),
+};
+
+/** Open reference data — a registration form needs these before sign-in. */
+export const geo = {
+  counties: () => api.get<CountyOption[]>('/geo/counties'),
+  subcounties: (countyId: string) =>
+    api.get<SubcountyOption[]>(`/geo/counties/${countyId}/subcounties`),
+};
+
 export const auth = {
   login: (phone: string, password: string) =>
     api.post<LoginResult>('/auth/login', { phone, password }),

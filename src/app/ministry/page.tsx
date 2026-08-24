@@ -11,6 +11,7 @@ import {
   type CountyRef,
   type Provenance,
 } from '@/lib/api';
+import { PORTALS } from '@/lib/portals';
 
 /**
  * The Ministry dashboard.
@@ -70,7 +71,7 @@ export default function MinistryPage() {
     (async () => {
       try {
         if (!hasSession() && !(await restoreSession())) {
-          router.replace('/login');
+          router.replace(PORTALS.ministry.signInPath);
           return;
         }
         const [c, b, r, w, s, g, p] = await Promise.all([
@@ -93,7 +94,7 @@ export default function MinistryPage() {
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && (err.code === 'NO_SESSION' || err.code === 'MFA_REQUIRED')) {
-          router.replace('/login?reason=mfa');
+          router.replace(`${PORTALS.ministry.signInPath}?reason=mfa`);
           return;
         }
         setError(err instanceof ApiError ? `${err.message} (${err.code})` : 'Could not load');

@@ -25,6 +25,7 @@ import {
 
 import { useRouter } from 'next/navigation';
 import { nhp, hasSession, restoreSession, ApiError, type PatientSummary } from '@/lib/api';
+import { PORTALS } from '@/lib/portals';
 
 /** The demo patient's National ID, from `pnpm seed:demo` in the backend. */
 const DEMO_IDENTIFIER = '39104882';
@@ -81,7 +82,7 @@ export default function EncounterPage() {
         // refresh token lives in an httpOnly cookie this code cannot read,
         // so we ask the API to rotate it rather than reading it ourselves.
         if (!hasSession() && !(await restoreSession())) {
-          router.replace('/login');
+          router.replace(PORTALS.worker.signInPath);
           return;
         }
         if (cancelled) return;
@@ -97,7 +98,7 @@ export default function EncounterPage() {
         // refresh cookie must never silently confer a second factor. Send
         // the clinician to re-present it rather than stranding them.
         if (err instanceof ApiError && (err.code === 'MFA_REQUIRED' || err.code === 'NO_SESSION')) {
-          router.replace('/login?reason=mfa');
+          router.replace(`${PORTALS.worker.signInPath}?reason=mfa`);
           return;
         }
 
