@@ -49,9 +49,12 @@ beforeEach(() => {
     nhpId: 'NHP-EF56-GH78',
     practitionerId: 'p1',
     licenceNumber: 'NCK/2026/0038',
+    clinicalLogin: 'NCK/2026/0038',
     verification: {},
     message:
       'Registration received. You cannot record clinical data until a facility affiliation is granted.',
+    loginNote:
+      'Sign in to the health workers portal with your LICENCE NUMBER, not your phone.',
   });
   registerStub.facility.mockResolvedValue({
     facilityId: 'f1',
@@ -295,5 +298,42 @@ describe('facility registration', () => {
     await waitFor(() =>
       expect(screen.getByText(/awaiting Ministry approval/i)).toBeInTheDocument(),
     );
+  });
+});
+
+describe('what a clinician signs in with', () => {
+  /**
+   * THE REGRESSION, on the screen where it bit. Registration creates TWO
+   * accounts for one human being: a citizen account on their phone, and a
+   * clinical account on their licence number. A clinician who takes their
+   * phone to the worker portal signs in as a PATIENT, lands on the citizen
+   * record, and concludes the system is broken.
+   */
+  it('shows the licence number as the clinical login', async () => {
+    const user = userEvent.setup();
+    render(<WorkerRegister />);
+
+    await user.selectOptions(screen.getByLabelText(/cadre/i), 'NURSE');
+    await user.type(screen.getByLabelText(/licence number/i), 'NCK/2026/0038');
+    await fillPerson(user);
+    await user.click(screen.getByRole('button', { name: /^register$/i }));
+
+    expect(await screen.findByText(/sign in with this/i)).toBeInTheDocument();
+    expect(screen.getByText(/not your phone/i)).toBeInTheDocument();
+  });
+
+  it('distinguishes the clinical login from their own patient record', async () => {
+    const user = userEvent.setup();
+    render(<WorkerRegister />);
+
+    await user.selectOptions(screen.getByLabelText(/cadre/i), 'NURSE');
+    await user.type(screen.getByLabelText(/licence number/i), 'NCK/2026/0038');
+    await fillPerson(user);
+    await user.click(screen.getByRole('button', { name: /^register$/i }));
+
+    // Both are shown, each labelled with what it is for. Showing only the
+    // NHP number is what left a clinician with no way to sign in as one.
+    expect(await screen.findByText('NHP-EF56-GH78')).toBeInTheDocument();
+    expect(screen.getByText(/your own patient record/i)).toBeInTheDocument();
   });
 });

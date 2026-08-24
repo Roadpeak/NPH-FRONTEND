@@ -51,7 +51,12 @@ export default function WorkerRegisterPage() {
   const [licenceNumber, setLicenceNumber] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ nhpId: string; message: string } | null>(null);
+  const [done, setDone] = useState<{
+    nhpId: string;
+    message: string;
+    clinicalLogin: string;
+    loginNote: string;
+  } | null>(null);
 
   const regulator = CADRES.find((c) => c.value === cadre)?.regulator;
 
@@ -86,7 +91,12 @@ export default function WorkerRegisterPage() {
         licenceNumber,
         regulator,
       });
-      setDone({ nhpId: result.nhpId, message: result.message });
+      setDone({
+        nhpId: result.nhpId,
+        message: result.message,
+        clinicalLogin: result.clinicalLogin,
+        loginNote: result.loginNote,
+      });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not reach the server');
     } finally {
@@ -124,9 +134,21 @@ export default function WorkerRegisterPage() {
           until your affiliation is granted.
         </p>
 
+        {/* The most important thing on this screen. A clinician who takes
+            their phone number to the worker portal signs in as a PATIENT,
+            lands on the citizen record, and concludes the system is broken. */}
+        <p className="mb-4 rounded-md border border-gov/40 bg-surface-alt px-4 py-3">
+          <span className="eyebrow mb-1 block">Sign in with this</span>
+          <span className="font-mono text-lg font-semibold">{done.clinicalLogin}</span>
+          <span className="mt-1 block text-micro text-ink-soft">{done.loginNote}</span>
+        </p>
+
         <p className="mb-5 rounded-md border border-rule bg-surface-alt px-4 py-3">
           <span className="eyebrow mb-1 block">Your NHP number</span>
           <span className="font-mono text-lg font-semibold">{done.nhpId}</span>
+          <span className="mt-1 block text-micro text-ink-faint">
+            Your own patient record, found by your phone number.
+          </span>
         </p>
 
         <Link

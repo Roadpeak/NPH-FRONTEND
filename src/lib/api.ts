@@ -274,8 +274,11 @@ export const register = {
       nhpId: string;
       practitionerId: string;
       licenceNumber: string | null;
+      /** What they sign in with as a clinician — their licence, NOT the phone. */
+      clinicalLogin: string;
       verification: unknown;
       message: string;
+      loginNote: string;
     }>('/auth/register/practitioner', input),
 
   facility: (input: {
