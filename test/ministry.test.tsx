@@ -19,6 +19,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 const push = vi.fn();
 const replace = vi.fn();
@@ -71,12 +72,37 @@ const PROVENANCE = {
 const ministryStub = {
   counties: vi.fn(async () => COUNTIES),
   burden: vi.fn(async () => BURDEN),
-  subcounty: vi.fn(async () => []),
+  subcounty: vi.fn(
+    async (): Promise<Array<{ subcountyId: string; cases: number; suppressed: number }>> => [],
+  ),
   referralClosure: vi.fn(async () => []),
   workforce: vi.fn(async () => []),
   careGaps: vi.fn(async () => []),
-  surveillance: vi.fn(async () => []),
+  surveillance: vi.fn(
+    async (): Promise<
+      Array<{
+        icd11Code: string;
+        title: string;
+        countyId: string;
+        cases: number;
+        facilitiesInvolved: number;
+      }>
+    > => [],
+  ),
   provenance: vi.fn(async () => PROVENANCE),
+};
+
+/**
+ * Subcounty names come from the published administrative list, not from the
+ * aggregate — an area whose every cell is suppressed still has a name.
+ */
+const geoStub = {
+  counties: vi.fn(async () => []),
+  subcounties: vi.fn(async () => [
+    { id: 's-kisumu-east', name: 'Kisumu East', kind: 'SUBCOUNTY' },
+    { id: 's-kisumu-west', name: 'Kisumu West', kind: 'SUBCOUNTY' },
+    { id: 's-nyando', name: 'Nyando', kind: 'SUBCOUNTY' },
+  ]),
 };
 
 vi.mock('@/lib/api', async (importOriginal) => {
@@ -84,6 +110,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
   return {
     ...actual,
     ministry: ministryStub,
+    geo: geoStub,
     hasSession: () => true,
     restoreSession: async () => true,
   };
@@ -230,5 +257,256 @@ describe('when the analyst is not signed in', () => {
     // A dashboard of zeroes is a worse answer than a sign-in prompt: it
     // looks like a country with no disease.
     await waitFor(() => expect(screen.queryByText('34')).not.toBeInTheDocument());
+  });
+});
+
+// =====================================================================
+
+/**
+ * THE SUBCOUNTY DRILL.
+ *
+ * The same disclosure rule as the county view, one level down and harder:
+ * a cell that survived suppression at county level can fall below the
+ * threshold once it is split by subcounty. So the drill is a fresh
+ * suppression decision, and the screen must not present it as a
+ * decomposition of the county figure — the parts genuinely do not sum to
+ * the whole, and an analyst who assumes they do will read the difference as
+ * missing data rather than as withheld data.
+ */
+describe('the subcounty drill', () => {
+  const SUBCOUNTY_ROWS = [
+    { subcountyId: 's-kisumu-east', cases: 21, suppressed: 0 },
+    { subcountyId: 's-kisumu-west', cases: 13, suppressed: 0 },
+    { subcountyId: 's-nyando', cases: 0, suppressed: 4 }, // below the threshold
+  ];
+
+  beforeEach(() => {
+    ministryStub.subcounty.mockResolvedValue(SUBCOUNTY_ROWS);
+  });
+
+  it('is not fetched until a county is actually asked for', async () => {
+    await renderPage();
+    // 47 counties prefetched would be 47 separate suppression decisions
+    // computed for a screen nobody has opened.
+    expect(ministryStub.subcounty).not.toHaveBeenCalled();
+  });
+
+  it('breaks a county down when it is selected', async () => {
+    const user = userEvent.setup();
+    await renderPage();
+
+    await user.click(screen.getByRole('button', { name: /Kisumu/ }));
+
+    await waitFor(() => expect(screen.getByText('Kisumu East')).toBeInTheDocument());
+    expect(screen.getByText('21')).toBeInTheDocument();
+    expect(screen.getByText('Kisumu West')).toBeInTheDocument();
+    expect(ministryStub.subcounty).toHaveBeenCalledWith('c-kisumu', '1F41.0');
+  });
+
+  it('THE DISCLOSURE RULE — a suppressed subcounty is never rendered as zero', async () => {
+    const user = userEvent.setup();
+    await renderPage();
+
+    await user.click(screen.getByRole('button', { name: /Kisumu/ }));
+    await waitFor(() => expect(screen.getByText('Nyando')).toBeInTheDocument());
+
+    // Named, present, and not a number.
+    const row = screen.getByText('Nyando').closest('li');
+    expect(row).not.toBeNull();
+    expect(row!.textContent).not.toMatch(/\b0\b/);
+    expect(row!.textContent).toContain('—');
+  });
+
+  it('warns that the parts do not sum to the county figure', async () => {
+    const user = userEvent.setup();
+    await renderPage();
+
+    await user.click(screen.getByRole('button', { name: /Kisumu/ }));
+
+    // The county-level notice also says "fewer than 10 cases", so scope the
+    // assertion to the drill's own note rather than matching either one.
+    const note = await screen.findByText(/do not sum to the county/i);
+    expect(note.textContent).toMatch(/fewer than 10 cases/i);
+  });
+
+  it('names an area whose every cell is suppressed', async () => {
+    const user = userEvent.setup();
+    ministryStub.subcounty.mockResolvedValue([
+      { subcountyId: 's-nyando', cases: 0, suppressed: 4 },
+    ]);
+    await renderPage();
+
+    await user.click(screen.getByRole('button', { name: /Kisumu/ }));
+
+    // Dropping it would understate how many areas reported at all.
+    await waitFor(() => expect(screen.getByText('Nyando')).toBeInTheDocument());
+  });
+
+  it('collapses again without refetching', async () => {
+    const user = userEvent.setup();
+    await renderPage();
+
+    const county = screen.getByRole('button', { name: /Kisumu/ });
+    await user.click(county);
+    await waitFor(() => expect(screen.getByText('Kisumu East')).toBeInTheDocument());
+
+    await user.click(county);
+    await waitFor(() => expect(screen.queryByText('Kisumu East')).not.toBeInTheDocument());
+
+    await user.click(county);
+    await waitFor(() => expect(screen.getByText('Kisumu East')).toBeInTheDocument());
+    expect(ministryStub.subcounty).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a failed drill rather than showing an empty breakdown', async () => {
+    const user = userEvent.setup();
+    ministryStub.subcounty.mockRejectedValue(new Error('network'));
+    await renderPage();
+
+    await user.click(screen.getByRole('button', { name: /Kisumu/ }));
+
+    // An empty breakdown reads as "no cases in any subcounty".
+    await waitFor(() =>
+      expect(screen.getByText(/Could not load the subcounty breakdown/i)).toBeInTheDocument(),
+    );
+  });
+
+  it('exposes the expanded state to a screen reader', async () => {
+    const user = userEvent.setup();
+    await renderPage();
+
+    const county = screen.getByRole('button', { name: /Kisumu/ });
+    expect(county).toHaveAttribute('aria-expanded', 'false');
+    await user.click(county);
+    expect(county).toHaveAttribute('aria-expanded', 'true');
+  });
+});
+
+// =====================================================================
+
+/**
+ * THE OUTBREAK VIEW.
+ *
+ * Every notifiable signal used to render identically, so a single case sat
+ * in the same red box as a cluster across four facilities. The judgement an
+ * analyst actually makes is whether something is spreading, and the number
+ * that answers it is facility spread rather than raw count: several
+ * facilities in one county suggests transmission in the community, while
+ * the same count inside one facility may be one household or one referral
+ * chain.
+ */
+describe('the outbreak view', () => {
+  const SIGNALS = [
+    {
+      icd11Code: '1A00',
+      title: 'Cholera',
+      countyId: 'c-siaya',
+      cases: 6,
+      facilitiesInvolved: 3,
+    },
+    {
+      icd11Code: '1B10',
+      title: 'Typhoid fever',
+      countyId: 'c-kisumu',
+      cases: 22,
+      facilitiesInvolved: 1,
+    },
+    {
+      icd11Code: '1D80',
+      title: 'Measles',
+      countyId: 'c-busia',
+      cases: 4,
+      facilitiesInvolved: 2,
+    },
+  ];
+
+  beforeEach(() => {
+    ministryStub.surveillance.mockResolvedValue(SIGNALS);
+  });
+
+  async function openSurveillance() {
+    const user = userEvent.setup();
+    await renderPage();
+    await user.click(screen.getByRole('button', { name: 'Surveillance' }));
+    await waitFor(() => expect(screen.getByText('Cholera')).toBeInTheDocument());
+    return user;
+  }
+
+  it('ranks facility spread above raw case count', async () => {
+    await openSurveillance();
+
+    const titles = screen
+      .getAllByRole('listitem')
+      .map((li) => li.textContent ?? '')
+      .filter((t) => /Cholera|Typhoid|Measles/.test(t));
+
+    // Cholera (6 cases, 3 facilities) outranks typhoid (22 cases, 1).
+    expect(titles[0]).toContain('Cholera');
+    expect(titles[1]).toContain('Measles');
+    expect(titles[2]).toContain('Typhoid');
+  });
+
+  it('separates what is spreading from what is not', async () => {
+    await openSurveillance();
+
+    expect(screen.getAllByText('MULTI-FACILITY')).toHaveLength(2);
+    expect(screen.getAllByText('SINGLE FACILITY')).toHaveLength(1);
+  });
+
+  it('counts the spreading signals, not just the total', async () => {
+    await openSurveillance();
+
+    const tile = screen.getByText('Spreading').closest('div');
+    expect(tile).not.toBeNull();
+    expect(tile!.textContent).toContain('2');
+  });
+
+  it('names the county and the code for every signal', async () => {
+    await openSurveillance();
+
+    const cholera = screen.getByText('Cholera').closest('li');
+    expect(cholera!.textContent).toContain('Siaya');
+    expect(cholera!.textContent).toContain('1A00');
+    expect(cholera!.textContent).toContain('3 facilities');
+  });
+
+  it('counts affected counties without double-counting', async () => {
+    await openSurveillance();
+
+    const tile = screen.getByText('Counties affected').closest('div');
+    expect(tile!.textContent).toContain('3');
+  });
+
+  it('says so plainly when nothing is reportable', async () => {
+    const user = userEvent.setup();
+    ministryStub.surveillance.mockResolvedValue([]);
+    await renderPage();
+    await user.click(screen.getByRole('button', { name: 'Surveillance' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/No notifiable conditions recorded in this period/i),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it('pluralises a single case honestly', async () => {
+    const user = userEvent.setup();
+    ministryStub.surveillance.mockResolvedValue([
+      {
+        icd11Code: '1A00',
+        title: 'Cholera',
+        countyId: 'c-siaya',
+        cases: 1,
+        facilitiesInvolved: 1,
+      },
+    ]);
+    await renderPage();
+    await user.click(screen.getByRole('button', { name: 'Surveillance' }));
+
+    await waitFor(() => expect(screen.getByText('Cholera')).toBeInTheDocument());
+    const row = screen.getByText('Cholera').closest('li');
+    expect(row!.textContent).toContain('1 case ·');
+    expect(row!.textContent).toContain('1 facility');
   });
 });

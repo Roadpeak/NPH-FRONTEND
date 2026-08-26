@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ministry,
+  geo,
   hasSession,
   restoreSession,
   ApiError,
@@ -12,6 +13,8 @@ import {
   type CountyRef,
   type Provenance,
 } from '@/lib/api';
+
+type SubcountyBurden = Awaited<ReturnType<typeof ministry.subcounty>>[number];
 import { PORTALS } from '@/lib/portals';
 
 /**
@@ -67,6 +70,55 @@ export default function MinistryPage() {
   const [prov, setProv] = useState<Provenance | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * The subcounty drill, one county at a time.
+   *
+   * Deliberately not prefetched for all 47. A county breakdown is a
+   * separate suppression decision — cells that survived at county level can
+   * vanish at subcounty level — so it is fetched when asked for and cached
+   * under the county it belongs to, never merged into the national numbers.
+   */
+  const [openCounty, setOpenCounty] = useState<string | null>(null);
+  const [drill, setDrill] = useState<Record<string, SubcountyBurden[]>>({});
+  const [drillNames, setDrillNames] = useState<Record<string, string>>({});
+  const [drillBusy, setDrillBusy] = useState(false);
+  const [drillError, setDrillError] = useState<string | null>(null);
+
+  async function toggleCounty(countyId: string) {
+    if (openCounty === countyId) {
+      setOpenCounty(null);
+      return;
+    }
+    setOpenCounty(countyId);
+    setDrillError(null);
+    if (drill[countyId]) return;
+
+    setDrillBusy(true);
+    try {
+      // The names come from the published administrative list, not from the
+      // aggregate — an area with every cell suppressed still has a name, and
+      // omitting it would silently shorten the list.
+      const [rows, names] = await Promise.all([
+        ministry.subcounty(countyId, '1F41.0'),
+        geo.subcounties(countyId),
+      ]);
+      setDrill((d) => ({ ...d, [countyId]: rows }));
+      setDrillNames((n) => {
+        const next = { ...n };
+        for (const s of names) next[s.id] = s.name;
+        return next;
+      });
+    } catch (err) {
+      setDrillError(
+        err instanceof ApiError
+          ? `${err.message} (${err.code})`
+          : 'Could not load the subcounty breakdown',
+      );
+    } finally {
+      setDrillBusy(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -110,6 +162,19 @@ export default function MinistryPage() {
   const maxCases = Math.max(1, ...burden.map((b) => b.cases));
   const totalCases = burden.reduce((s, b) => s + b.cases, 0);
   const suppressedCounties = burden.filter((b) => b.cases === 0 && b.suppressedCells > 0);
+
+  /**
+   * Outbreak ranking.
+   *
+   * A notifiable condition seen at several facilities in one county is a
+   * different thing from the same count inside a single facility: the first
+   * suggests transmission in the community, the second may be one household
+   * or one referral chain. Facility spread therefore sorts above raw count.
+   */
+  const spreading = surveillance.filter((s) => s.facilitiesInvolved > 1);
+  const ranked = [...surveillance].sort(
+    (a, b) => b.facilitiesInvolved - a.facilitiesInvolved || b.cases - a.cases,
+  );
 
   return (
     <div className="min-h-screen bg-surface-sunken">
@@ -183,23 +248,100 @@ export default function MinistryPage() {
             </div>
 
             <h2 className="eyebrow mb-2">Cases by county · malaria</h2>
+            <p className="mb-2 text-micro text-ink-faint">
+              Select a county for its subcounty breakdown.
+            </p>
             <ul className="mb-4 space-y-1">
               {burden
                 .filter((b) => b.cases > 0)
-                .map((b) => (
-                  <li key={b.countyId} className="flex items-center gap-3">
-                    <span className="w-28 shrink-0 truncate text-sm">{nameOf(b.countyId)}</span>
-                    <span className="h-4 flex-1 overflow-hidden rounded-sm bg-rule-soft">
-                      <span
-                        className={`block h-full ${rampFor(b.cases, maxCases)}`}
-                        style={{ width: `${(b.cases / maxCases) * 100}%` }}
-                      />
-                    </span>
-                    <span className="w-12 shrink-0 text-right font-mono text-sm tabular">
-                      {b.cases}
-                    </span>
-                  </li>
-                ))}
+                .map((b) => {
+                  const open = openCounty === b.countyId;
+                  const rows = drill[b.countyId];
+                  return (
+                    <li key={b.countyId}>
+                      <button
+                        type="button"
+                        onClick={() => toggleCounty(b.countyId)}
+                        aria-expanded={open}
+                        className="flex w-full items-center gap-3 rounded-sm px-1 py-0.5 text-left hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-gov"
+                      >
+                        <span aria-hidden className="w-3 shrink-0 font-mono text-micro text-ink-faint">
+                          {open ? '▾' : '▸'}
+                        </span>
+                        <span className="w-28 shrink-0 truncate text-sm">{nameOf(b.countyId)}</span>
+                        <span className="h-4 flex-1 overflow-hidden rounded-sm bg-rule-soft">
+                          <span
+                            className={`block h-full ${rampFor(b.cases, maxCases)}`}
+                            style={{ width: `${(b.cases / maxCases) * 100}%` }}
+                          />
+                        </span>
+                        <span className="w-12 shrink-0 text-right font-mono text-sm tabular">
+                          {b.cases}
+                        </span>
+                      </button>
+
+                      {open && (
+                        <div className="ml-4 mt-1 border-l-2 border-rule pl-3">
+                          {drillBusy && !rows && (
+                            <p className="py-1.5 text-micro text-ink-faint">Loading…</p>
+                          )}
+                          {drillError && !rows && (
+                            <p className="py-1.5 text-micro text-critical">{drillError}</p>
+                          )}
+                          {rows && rows.length === 0 && (
+                            <p className="py-1.5 text-micro text-ink-faint">
+                              No subcounty rows for this period.
+                            </p>
+                          )}
+                          {rows && rows.length > 0 && (
+                            <ul className="space-y-1 py-1">
+                              {rows.map((s) => (
+                                <li key={s.subcountyId} className="flex items-center gap-3">
+                                  <span className="w-24 shrink-0 truncate text-micro text-ink-soft">
+                                    {drillNames[s.subcountyId] ?? 'Unknown area'}
+                                  </span>
+                                  {s.cases > 0 ? (
+                                    <>
+                                      <span className="h-2.5 flex-1 overflow-hidden rounded-sm bg-rule-soft">
+                                        <span
+                                          className={`block h-full ${rampFor(s.cases, Math.max(1, ...rows.map((r) => r.cases)))}`}
+                                          style={{
+                                            width: `${(s.cases / Math.max(1, ...rows.map((r) => r.cases))) * 100}%`,
+                                          }}
+                                        />
+                                      </span>
+                                      <span className="w-12 shrink-0 text-right font-mono text-micro tabular">
+                                        {s.cases}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    /* Suppressed, and said so in words. A hatched
+                                       bar with a zero beside it is read as "no
+                                       disease here" by everyone who is not the
+                                       person who built the screen. */
+                                    <>
+                                      <span className="h-2.5 flex-1 rounded-sm border border-dashed border-rule bg-transparent" />
+                                      <span className="w-12 shrink-0 text-right font-mono text-micro text-ink-faint">
+                                        —
+                                      </span>
+                                    </>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {rows && rows.some((s) => s.cases === 0) && (
+                            <p className="pb-1 text-micro text-ink-faint">
+                              — fewer than {prov?.suppressionThreshold ?? 10} cases, withheld
+                              to protect identity. Subcounty totals do not sum to the county
+                              figure.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
             </ul>
 
             {suppressedCounties.length > 0 && (
@@ -343,20 +485,71 @@ export default function MinistryPage() {
                 No notifiable conditions recorded in this period.
               </p>
             ) : (
-              <ul className="space-y-1.5">
-                {surveillance.map((s, i) => (
-                  <li
-                    key={`${s.icd11Code}-${i}`}
-                    className="rounded border border-critical/30 bg-critical-soft px-3 py-2.5"
-                  >
-                    <p className="text-sm font-semibold text-critical">{s.title}</p>
-                    <p className="text-micro text-ink-soft">
-                      {nameOf(s.countyId)} · {s.cases} cases ·{' '}
-                      {s.facilitiesInvolved} facilities
+              <>
+                <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-rule bg-surface px-4 py-3">
+                    <p className="eyebrow mb-1">Signals</p>
+                    <p className="text-2xl font-semibold tabular">{surveillance.length}</p>
+                    <p className="text-micro text-ink-faint">disease · county clusters</p>
+                  </div>
+                  <div className="rounded-lg border border-rule bg-surface px-4 py-3">
+                    <p className="eyebrow mb-1">Spreading</p>
+                    <p className="text-2xl font-semibold tabular text-critical">
+                      {spreading.length}
                     </p>
-                  </li>
-                ))}
-              </ul>
+                    {/* Multi-facility is the signal that separates an outbreak
+                        from one family walking into one clinic. */}
+                    <p className="text-micro text-ink-faint">seen at 2+ facilities</p>
+                  </div>
+                  <div className="rounded-lg border border-rule bg-surface px-4 py-3">
+                    <p className="eyebrow mb-1">Counties affected</p>
+                    <p className="text-2xl font-semibold tabular">
+                      {new Set(surveillance.map((s) => s.countyId)).size}
+                    </p>
+                    <p className="text-micro text-ink-faint">of {counties.length}</p>
+                  </div>
+                </div>
+
+                {/* Ordered by concern, not alphabetically. A cluster across
+                    several facilities outranks a larger count inside one,
+                    because transmission is the thing worth acting on. */}
+                <ul className="space-y-1.5">
+                  {ranked.map((s, i) => {
+                    const spread = s.facilitiesInvolved > 1;
+                    return (
+                      <li
+                        key={`${s.icd11Code}-${s.countyId}-${i}`}
+                        className={`rounded border px-3 py-2.5 ${
+                          spread
+                            ? 'border-critical/30 bg-critical-soft'
+                            : 'border-caution/40 bg-caution-soft'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p
+                            className={`text-sm font-semibold ${
+                              spread ? 'text-critical' : 'text-ink'
+                            }`}
+                          >
+                            {s.title}
+                          </p>
+                          <span
+                            className={`chip ${spread ? 'chip-critical' : 'chip-caution'}`}
+                          >
+                            {spread ? 'MULTI-FACILITY' : 'SINGLE FACILITY'}
+                          </span>
+                        </div>
+                        <p className="text-micro text-ink-soft">
+                          {nameOf(s.countyId)} · {s.cases}{' '}
+                          {s.cases === 1 ? 'case' : 'cases'} · {s.facilitiesInvolved}{' '}
+                          {s.facilitiesInvolved === 1 ? 'facility' : 'facilities'} ·{' '}
+                          <span className="font-mono">{s.icd11Code}</span>
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
             )}
             <p className="mt-3 max-w-prose text-micro text-ink-faint">
               Raised automatically when a reportable condition is recorded.
