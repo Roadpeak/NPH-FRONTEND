@@ -113,14 +113,50 @@ Two tabs so far — Record and Who has seen it. Break-glass entries are the
 most prominent thing in the access log deliberately: an override the patient
 can see and query is a very different thing from one they cannot.
 
+**Ministry map** (`/ministry`) — aggregates, and what they are not.
+
+Four views: disease burden, referral loop closure, workforce and
+surveillance. Geography is a ranked county list rather than a choropleth —
+NHP does not ship Kenya's boundary TopoJSON, and a decorative approximation
+of a national map would be worse than an honest table.
+
+A county expands to its subcounties on demand. That drill is a **separate
+suppression decision**, not a decomposition: a cell that survived at county
+level can fall below the threshold once split, so the breakdown says
+outright that its parts do not sum to the county figure. A suppressed area
+is named, dashed and marked with an em dash — never a zero, which is a false
+statement, and never blank, which is the same lie told quietly.
+
+Surveillance ranks by **facility spread before raw count**. Several
+facilities in one county suggests community transmission; the same count
+inside one facility may be one household or one referral chain. Six cases of
+cholera across three facilities therefore outranks twenty-two typhoid cases
+in one.
+
+There is deliberately no "view patients" affordance — not greyed out,
+absent — because the data to populate it does not exist in the tables this
+role can reach.
+
+**Facility administration** (`/facility`) — running a facility.
+
+A facility administrator is not a fourth credential type. They are a
+practitioner holding `FACILITY_ADMIN` at one facility, so the licence
+checks, MFA and audit trail apply to them unchanged. Three screens: the
+facility profile, the staff roster, and the reception desk.
+
+Reception is the constrained one. A queue row carries a name, an age and a
+photo, and nothing else — no allergy, no diagnosis, no medicine — because a
+receptionist has no clinical reason to know any of it and a busy waiting
+room is the least private place in the building.
+
 ### To build
 
-1. ~~Clinician patient summary~~ — done
-2. ~~Citizen timeline~~ — done — the most-viewed screen; home of the
-   safety banner.
-3. **Citizen timeline** — the same record in plain language, English and
-   Swahili.
-4. **Ministry map** — county choropleth, drill to subcounty, outbreak view.
+Every screen in the plan is built. What remains is not screens:
+
+1. **Kenya boundary TopoJSON** — would turn the ranked county list into a
+   real choropleth. Blocked on sourcing authoritative boundaries, not on UI.
+2. **Swahili review by a native speaker** — interface strings and seed
+   labels alike. Nothing here was machine-translated, and nothing should be.
 
 Encounter entry runs against the **live backend**. The patient identity,
 allergies, current medications and chronic conditions all come from
