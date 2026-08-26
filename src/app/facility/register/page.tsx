@@ -49,6 +49,17 @@ export default function FacilityRegisterPage() {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
 
+  // Ownership evidence, asked for only of a non-public facility. Reference
+  // numbers rather than uploaded documents: the Ministry checks these
+  // against the Business Registry, KRA and its own register, which proves
+  // more than a scan anyone could produce.
+  const [businessRegNo, setBusinessRegNo] = useState('');
+  const [kraPin, setKraPin] = useState('');
+  const [practiceLicenceNo, setPracticeLicenceNo] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [ownerNationalId, setOwnerNationalId] = useState('');
+  const [adminLicenceNumber, setAdminLicenceNumber] = useState('');
+
   const [counties, setCounties] = useState<CountyOption[]>([]);
   const [subcounties, setSubcounties] = useState<SubcountyOption[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +102,18 @@ export default function FacilityRegisterPage() {
         locality: locality || undefined,
         latitude: Number(latitude),
         longitude: Number(longitude),
+        // Sent only when they apply. A public facility that carried these
+        // would be asserting an ownership it does not have.
+        ...(chosen && !chosen.isPublic
+          ? {
+              businessRegNo,
+              kraPin: kraPin || undefined,
+              practiceLicenceNo: practiceLicenceNo || undefined,
+              ownerName: ownerName || undefined,
+              ownerNationalId: ownerNationalId || undefined,
+              adminLicenceNumber: adminLicenceNumber || undefined,
+            }
+          : {}),
       });
       setDone({ mflCode: result.mflCode, message: result.message });
     } catch (err) {
@@ -228,6 +251,114 @@ export default function FacilityRegisterPage() {
               </>
             )}
           </p>
+        )}
+
+        {chosen && !chosen.isPublic && (
+          /*
+           * Proving the facility is real and legally allowed to operate.
+           *
+           * Reference numbers, not uploads. A registrar checks each of
+           * these against the register that issued it, which is a stronger
+           * check than any document a portal could accept — and it means
+           * nobody has to store scans of somebody's identity papers.
+           */
+          <fieldset className="mb-5 rounded-lg border border-rule bg-surface-alt p-4">
+            <legend className="px-1.5 text-sm font-semibold">
+              Ownership and legality
+            </legend>
+            <p className="mb-3 text-micro text-ink-soft">
+              The Ministry checks these against the Business Registry, KRA and
+              its own register before approving. Give the numbers as they
+              appear on the certificates — no documents are uploaded.
+            </p>
+
+            <div className="grid gap-x-4 sm:grid-cols-2">
+              <Field id="businessRegNo" label="Business registration number">
+                <input
+                  id="businessRegNo"
+                  required
+                  value={businessRegNo}
+                  onChange={(e) => setBusinessRegNo(e.target.value.toUpperCase())}
+                  placeholder="PVT-ABC1234"
+                  autoComplete="off"
+                  className={`${inputClass} font-mono`}
+                />
+              </Field>
+
+              <Field id="kraPin" label="KRA PIN">
+                <input
+                  id="kraPin"
+                  value={kraPin}
+                  onChange={(e) => setKraPin(e.target.value.toUpperCase())}
+                  placeholder="P051234567X"
+                  autoComplete="off"
+                  className={`${inputClass} font-mono`}
+                />
+              </Field>
+
+              <Field
+                id="practiceLicenceNo"
+                label="Practice licence number (optional)"
+              >
+                <input
+                  id="practiceLicenceNo"
+                  value={practiceLicenceNo}
+                  onChange={(e) => setPracticeLicenceNo(e.target.value.toUpperCase())}
+                  autoComplete="off"
+                  className={`${inputClass} font-mono`}
+                />
+              </Field>
+
+              <Field id="ownerName" label="Owner's full name">
+                <input
+                  id="ownerName"
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  autoComplete="off"
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+
+            <Field id="ownerNationalId" label="Owner's National ID">
+              <input
+                id="ownerNationalId"
+                inputMode="numeric"
+                value={ownerNationalId}
+                onChange={(e) => setOwnerNationalId(e.target.value.replace(/\D/g, ''))}
+                maxLength={12}
+                autoComplete="off"
+                className={`${inputClass} font-mono`}
+              />
+            </Field>
+            <p className="-mt-2 mb-4 text-micro text-ink-faint">
+              Stored encrypted and read only by the registrar checking it. It
+              is never shown back on this portal.
+            </p>
+
+            <Field
+              id="adminLicenceNumber"
+              label="Your licence number, to administer this facility"
+            >
+              <input
+                id="adminLicenceNumber"
+                value={adminLicenceNumber}
+                onChange={(e) => setAdminLicenceNumber(e.target.value.toUpperCase())}
+                placeholder="KMPDC/2026/H001"
+                autoComplete="off"
+                className={`${inputClass} font-mono`}
+              />
+            </Field>
+            <p className="-mt-2 text-micro text-ink-faint">
+              {/* Says plainly why this is asked for and when it takes
+                  effect. Nobody administers a facility the Ministry has
+                  not yet verified. */}
+              Whoever registers a private facility runs it. Register on the
+              health worker portal first, then give that licence number here —
+              you become the administrator once the Ministry approves the
+              facility, not before.
+            </p>
+          </fieldset>
         )}
 
         <div className="grid gap-x-4 sm:grid-cols-2">

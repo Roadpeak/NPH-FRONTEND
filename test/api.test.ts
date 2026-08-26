@@ -242,6 +242,8 @@ describe('the auth.me contract', () => {
         personId: null,
         mfaSatisfied: true,
         checkedInAt: null,
+        facilityAdminOf: null,
+        facilityAdminOfName: null,
       },
     });
 

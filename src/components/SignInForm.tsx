@@ -58,7 +58,7 @@ export function SignInForm({
    */
   async function land() {
     const me = await auth.me();
-    router.push(portalFor(me).landingPath);
+    router.push(portalFor(me, portal).landingPath);
   }
 
   async function submitCredentials(event: React.FormEvent) {

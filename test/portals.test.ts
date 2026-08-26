@@ -103,3 +103,67 @@ describe('the portal definitions', () => {
     expect(ids).toEqual(Object.keys(PORTALS).sort());
   });
 });
+
+/*
+ * The facility administrator.
+ *
+ * The one case the account alone cannot settle. They hold a practitioner
+ * id, because that is what keeps the licence checks and the audit trail
+ * applying to them — so before this, every administrator signing in at
+ * the facility door landed in the clinical portal instead.
+ */
+describe('routing a facility administrator', () => {
+  it('sends them to the facility portal when they came through its door', () => {
+    expect(
+      portalFor({ ...me({ practitionerId: 'p1' }), facilityAdminOf: 'f1' }, PORTALS.facility).id,
+    ).toBe('facility');
+  });
+
+  it('keeps them in the clinical portal when they signed in there', () => {
+    // At a small clinic the same person runs the place and sees patients.
+    // Neither portal is wrong, so the door they chose decides.
+    expect(
+      portalFor({ ...me({ practitionerId: 'p1' }), facilityAdminOf: 'f1' }, PORTALS.worker).id,
+    ).toBe('worker');
+  });
+
+  it('does not strand an ordinary clinician at the facility door', () => {
+    // They administer nothing. Sending them to a portal that would refuse
+    // every route would be a permission wall through no fault of theirs.
+    expect(
+      portalFor({ ...me({ practitionerId: 'p1' }), facilityAdminOf: null }, PORTALS.facility).id,
+    ).toBe('worker');
+  });
+
+  it('still routes with no portal given at all', () => {
+    expect(portalFor({ ...me({ practitionerId: 'p1' }), facilityAdminOf: 'f1' }).id).toBe('worker');
+  });
+});
+
+/*
+ * Where each portal actually puts you.
+ *
+ * Signing in must land on a workspace. The facility portal landed on its
+ * own public welcome page instead, which greeted somebody who had just
+ * signed in with a "Sign in" button — a fault no server-side test could
+ * have caught, because every route involved answered correctly.
+ *
+ * `basePath` is excluded: the Ministry portal serves its dashboard at
+ * `/ministry` and its public page at `/ministry/welcome`, so there the
+ * two genuinely coincide.
+ */
+describe('every portal lands on a workspace, not a sign-in screen', () => {
+  it.each(PORTAL_LIST.map((p) => [p.id, p] as const))(
+    '%s does not land back on its own sign-in or registration page',
+    (_id, portal: Portal) => {
+      expect(portal.landingPath).not.toBe(portal.signInPath);
+      expect(portal.landingPath).not.toBe(portal.registerPath);
+    },
+  );
+
+  it('sends a facility administrator to the reception desk', () => {
+    // Named explicitly, because "not the sign-in page" was already true of
+    // the broken value and would not have caught it.
+    expect(PORTALS.facility.landingPath).toBe('/facility/reception');
+  });
+});

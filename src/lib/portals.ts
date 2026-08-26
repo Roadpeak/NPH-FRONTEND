@@ -78,7 +78,10 @@ export const PORTALS: Record<PortalId, Portal> = {
     basePath: '/facility',
     signInPath: '/facility/login',
     registerPath: '/facility/register',
-    landingPath: '/facility',
+    // The reception desk, not the front door. Every other portal lands on
+    // a workspace; this one landed on its own marketing page, which
+    // offered "Sign in" to somebody who had just signed in.
+    landingPath: '/facility/reception',
     selfRegistration: true,
   },
   ministry: {
@@ -113,13 +116,29 @@ export const PORTAL_LIST: Portal[] = [
  * Order matters. A practitioner account and a citizen account are separate
  * rows for the same human being, so "has a practitioner id" must be asked
  * before "has a person id" or every clinician lands on the citizen screen.
+ *
+ * A facility administrator is the one case the account alone cannot
+ * settle. They ARE a practitioner — that is what keeps the licence checks
+ * and audit trail applying to them — and at a small clinic the same person
+ * both runs the place and sees patients, so neither portal is wrong. The
+ * door they signed in through decides: someone who went to the facility
+ * sign-in wants the facility portal, and everyone else keeps the clinical
+ * one they had before.
  */
-export function portalFor(me: {
-  practitionerId: string | null;
-  ministryUserId: string | null;
-  personId: string | null;
-}): Portal {
-  if (me.practitionerId) return PORTALS.worker;
+export function portalFor(
+  me: {
+    practitionerId: string | null;
+    ministryUserId: string | null;
+    personId: string | null;
+    facilityAdminOf?: string | null;
+  },
+  /** The portal whose sign-in form they used, when there was one. */
+  cameFrom?: Portal,
+): Portal {
+  if (me.practitionerId) {
+    if (cameFrom?.id === 'facility' && me.facilityAdminOf) return PORTALS.facility;
+    return PORTALS.worker;
+  }
   if (me.ministryUserId) return PORTALS.ministry;
   return PORTALS.citizen;
 }

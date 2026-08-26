@@ -241,7 +241,50 @@ describe('facility registration', () => {
     await user.selectOptions(screen.getByLabelText(/subcounty/i), 's1');
     await user.type(screen.getByLabelText(/latitude/i), '-0.0917');
     await user.type(screen.getByLabelText(/longitude/i), '34.768');
+
+    // A non-public facility must assert its own legality; the Ministry
+    // checks the number against the Business Registry before approving.
+    if (ownership !== 'PUBLIC_MOH' && ownership !== 'PUBLIC_OTHER') {
+      await user.type(
+        screen.getByLabelText(/business registration number/i),
+        'PVT-ABC1234',
+      );
+    }
   }
+
+  it('asks a non-public facility to prove it is a legal entity', async () => {
+    const user = userEvent.setup();
+    render(<FacilityRegister />);
+    await user.selectOptions(screen.getByLabelText(/ownership/i), 'PRIVATE_FOR_PROFIT');
+
+    expect(
+      screen.getByLabelText(/business registration number/i),
+    ).toBeInTheDocument();
+  });
+
+  it('asks a public facility for no ownership evidence at all', async () => {
+    // The Ministry stands behind its own facilities. Asking a dispensary
+    // to prove it is registered with the Business Registry is meaningless.
+    const user = userEvent.setup();
+    render(<FacilityRegister />);
+    await user.selectOptions(screen.getByLabelText(/ownership/i), 'PUBLIC_MOH');
+
+    expect(
+      screen.queryByLabelText(/business registration number/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('sends the ownership evidence with a private registration', async () => {
+    const user = userEvent.setup();
+    render(<FacilityRegister />);
+    await fillFacility(user, 'PRIVATE_FOR_PROFIT');
+    await user.click(screen.getByRole('button', { name: /register facility/i }));
+
+    await waitFor(() => expect(registerStub.facility).toHaveBeenCalled());
+    expect(registerStub.facility.mock.calls[0][0]).toMatchObject({
+      businessRegNo: 'PVT-ABC1234',
+    });
+  });
 
   it('submits the facility with its KEPH level and coordinates', async () => {
     const user = userEvent.setup();

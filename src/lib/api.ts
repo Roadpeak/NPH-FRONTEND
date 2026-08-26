@@ -295,13 +295,113 @@ export const register = {
     locality?: string;
     latitude: number;
     longitude: number;
+    /*
+     * Ownership evidence. Reference numbers rather than uploaded scans: a
+     * registrar checks these against the Business Registry, KRA and the
+     * MOH register, which proves more than a document anyone could forge.
+     * Required of a private, faith-based or NGO facility; meaningless for
+     * a public one, which the Ministry itself stands behind.
+     */
+    businessRegNo?: string;
+    kraPin?: string;
+    practiceLicenceNo?: string;
+    ownerNationalId?: string;
+    ownerName?: string;
+    /** Whoever registers a private facility becomes its administrator. */
+    adminLicenceNumber?: string;
   }) =>
     api.post<{
       facilityId: string;
       mflCode: string;
       registrationStatus: string;
+      firstAdminPractitionerId: string | null;
       message: string;
     }>('/facilities/register', input),
+};
+
+export interface FacilityProfile {
+  id: string;
+  mflCode: string | null;
+  name: string;
+  kephLevel: number;
+  ownership: string;
+  registrationStatus: string;
+  locality: string;
+  approvedAt: string | null;
+  businessRegNo: string | null;
+  kraPin: string | null;
+  practiceLicenceNo: string | null;
+  ownerName: string | null;
+  countyName: string;
+  subcountyName: string;
+  isPublic: boolean;
+  /** The ownership rule in a sentence, so the portal explains rather than refuses. */
+  staffingRule: string;
+}
+
+export interface StaffRow {
+  affiliationId: string;
+  practitionerId: string;
+  displayName: string;
+  cadre: string;
+  role: string;
+  status: string;
+  startedAt: string;
+  grantedByKind: string;
+  onDuty: boolean;
+  licenceNumber: string | null;
+  licenceStatus: string | null;
+}
+
+/**
+ * A person waiting to be seen.
+ *
+ * Identity only. There is no allergy, diagnosis or medicine here and
+ * there must never be: reception needs to know they have the right
+ * person, and a waiting room is the least private place in the building.
+ */
+export interface QueueEntry {
+  visitId: string;
+  nhpId: string;
+  displayName: string;
+  ageYears: number | null;
+  sex: string | null;
+  photoDataUrl: string | null;
+  arrivedAt: string;
+  reasonForVisit: string | null;
+  seenBy: string | null;
+}
+
+export const facility = {
+  me: () => api.get<FacilityProfile>('/facility/me'),
+
+  staff: (includeEnded = false) =>
+    api.get<{ facilityName: string; isPublic: boolean; staff: StaffRow[] }>(
+      `/facility/staff?includeEnded=${includeEnded}`,
+    ),
+
+  addStaff: (licenceNumber: string, role?: string) =>
+    api.post<{
+      affiliationId: string;
+      practitionerId: string;
+      displayName: string;
+      cadre: string;
+      licenceStatus: string;
+    }>('/facility/staff', { licenceNumber, ...(role ? { role } : {}) }),
+
+  removeStaff: (affiliationId: string) =>
+    api.delete<{ ended: boolean }>(`/facility/staff/${affiliationId}`),
+
+  queue: () => api.get<{ facilityName: string; queue: QueueEntry[] }>('/facility/queue'),
+
+  registerArrival: (nhpId: string, statedReason?: string) =>
+    api.post<{ arrivalId: string; alreadyWaiting: boolean; arrivedAt: string }>(
+      '/facility/queue',
+      { nhpId, ...(statedReason ? { statedReason } : {}) },
+    ),
+
+  closeArrival: (arrivalId: string, status: 'LEFT' | 'COMPLETED') =>
+    api.patch<{ id: string; status: string }>(`/facility/queue/${arrivalId}`, { status }),
 };
 
 export interface AdminOverview {
@@ -610,6 +710,13 @@ export const auth = {
       personId: string | null;
       mfaSatisfied: boolean;
       checkedInAt: string | null;
+      /**
+       * The facility this practitioner administers, if any. A facility
+       * admin IS a practitioner, so without this the sign-in routing
+       * cannot tell them from a treating clinician.
+       */
+      facilityAdminOf: string | null;
+      facilityAdminOfName: string | null;
     }>('/auth/me'),
 
   logout: () => api.post<{ revoked: number }>('/auth/logout'),

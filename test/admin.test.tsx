@@ -96,6 +96,8 @@ function signedInAs(role: string) {
     personId: null,
     mfaSatisfied: true,
     checkedInAt: null,
+    facilityAdminOf: null,
+    facilityAdminOfName: null,
   });
   adminStub.overview.mockResolvedValue(overviewFor(role));
 }
@@ -404,6 +406,8 @@ describe('access to the screen itself', () => {
       personId: null,
       mfaSatisfied: true,
       checkedInAt: null,
+      facilityAdminOf: null,
+      facilityAdminOfName: null,
     });
     adminStub.overview.mockResolvedValue(overviewFor('ANALYST'));
 
