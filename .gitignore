@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the templates must ship, or a clone has nothing to copy from.
+# These hold no secrets: placeholder values and comments only.
+!.env.example
+!.env.local.example
 
 # vercel
 .vercel
