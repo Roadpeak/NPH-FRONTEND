@@ -127,7 +127,10 @@ export default function PatientSummaryPage({
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => router.push('/encounter')}
+              // Carries the patient through. Without the id the encounter
+              // screen falls back to the demo record — a silent swap of
+              // patient on the one screen that must never do that.
+              onClick={() => router.push(`/encounter?patient=${nhpId}`)}
               className="rounded bg-gov px-3 py-1.5 text-sm font-semibold text-surface"
             >
               Start encounter

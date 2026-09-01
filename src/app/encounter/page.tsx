@@ -24,7 +24,7 @@ import {
  * in sixteen keystrokes, without touching the mouse.
  */
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   nhp,
   photo,
@@ -38,7 +38,16 @@ import {
 import { PORTALS } from '@/lib/portals';
 import { WorkerNav } from '@/components/WorkerNav';
 
-/** The demo patient's National ID, from `pnpm seed:demo` in the backend. */
+/**
+ * Fallback only. The consultation opens on whoever `?patient=` names — the
+ * patient the clinician actually selected — and falls back to the demo
+ * record when the screen is opened cold with nobody chosen.
+ *
+ * Without the parameter this screen ALWAYS loaded this one person, so
+ * "Start encounter" on a patient summary silently swapped the patient
+ * underneath the clinician. On a screen whose whole purpose is recording
+ * against the right record, that is the most dangerous defect available.
+ */
 const DEMO_IDENTIFIER = '39104882';
 
 interface RecordedDiagnosis {
@@ -63,6 +72,8 @@ const STEPS = [
 
 export default function EncounterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedPatient = searchParams.get('patient');
   const [patient, setPatient] = useState<PatientSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   // Fetched separately: a photo that fails to load must never delay or
@@ -105,9 +116,18 @@ export default function EncounterPage() {
         }
         if (cancelled) return;
 
-        const found = await nhp.searchPatients(DEMO_IDENTIFIER);
-        if (!found.match) throw new Error('Demo patient not found');
-        const summary = await nhp.patientSummary(found.match.id);
+        // `?patient=` carries an NHP id, which the summary endpoint accepts
+        // directly. Only when it is absent do we fall back to the demo
+        // record, and a bad id must surface as an error rather than
+        // quietly loading somebody else.
+        let summary;
+        if (requestedPatient) {
+          summary = await nhp.patientSummary(requestedPatient);
+        } else {
+          const found = await nhp.searchPatients(DEMO_IDENTIFIER);
+          if (!found.match) throw new Error('Demo patient not found');
+          summary = await nhp.patientSummary(found.match.id);
+        }
         if (!cancelled) setPatient(summary);
 
         // Who is signed in, and whether they are checked in. Separately
@@ -134,7 +154,7 @@ export default function EncounterPage() {
         // a convenience, and a failure to load one must never delay or
         // block the allergy banner.
         photo
-          .ofPatient(found.match.displayNumber)
+          .ofPatient(summary.person.displayNumber)
           .then((p) => !cancelled && setPatientPhoto(p.photo))
           .catch(() => !cancelled && setPatientPhoto(null));
       } catch (err) {
@@ -160,7 +180,7 @@ export default function EncounterPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, requestedPatient]);
 
   const queryDiagnoses = useCallback(
     (q: string): SearchResult[] =>
