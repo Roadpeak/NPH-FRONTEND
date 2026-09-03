@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { SafetyBanner } from '@/components/SafetyBanner';
 import { PatientHeader } from '@/components/PatientHeader';
 import { CodedSearch, type SearchResult } from '@/components/CodedSearch';
@@ -70,7 +70,7 @@ const STEPS = [
   'Disposition',
 ] as const;
 
-export default function EncounterPage() {
+function Encounter() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedPatient = searchParams.get('patient');
@@ -531,5 +531,28 @@ export default function EncounterPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * `useSearchParams` opts a route out of static prerendering, and Next
+ * refuses to build unless the boundary is explicit — the production build
+ * fails at prerender even though `next dev` renders it happily, because
+ * dev never prerenders at all.
+ *
+ * The boundary is the honest fix rather than `export const dynamic =
+ * 'force-dynamic'`: only the part that reads the URL needs to bail out of
+ * prerendering, and forcing the whole route dynamic would discard the
+ * static shell for every other visitor.
+ *
+ * The fallback is deliberately bare. Anything resembling a patient header
+ * here would be a header with no patient behind it, and on this screen a
+ * name that is not the patient's is the one thing that must never appear.
+ */
+export default function EncounterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-surface-sunken" />}>
+      <Encounter />
+    </Suspense>
   );
 }
