@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+.next
+out
+**/*.log
+.env
+.env.*
+!.env.example
+README.md
+.vscode
+.idea
+test
+coverage
