@@ -40,6 +40,8 @@ export function MfaEnrolment({
   const [stage, setStage] = useState<'CHOOSE' | 'CONFIRM'>('CHOOSE');
   const [code, setCode] = useState('');
   const [sentTo, setSentTo] = useState<string | null>(null);
+  /** Shown only while no SMS gateway is configured. See SignInForm. */
+  const [devCode, setDevCode] = useState<string | null>(null);
   const [totp, setTotp] = useState<{ secret: string; uri: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,6 +53,7 @@ export function MfaEnrolment({
       if (chosen === 'SMS') {
         const r = await auth.enrolSms(enrolToken);
         setSentTo(r.sentTo);
+        setDevCode(r.devCode ?? null);
       } else {
         setTotp(await auth.enrolTotp('NHP', enrolToken));
       }
@@ -132,10 +135,28 @@ export function MfaEnrolment({
   return (
     <form onSubmit={confirm}>
       {method === 'SMS' ? (
-        <p className="mb-4 text-sm text-ink-soft">
-          We sent a code to <span className="font-mono text-ink">{sentTo}</span>.
-          Enter it to finish.
-        </p>
+        <>
+          <p className="mb-4 text-sm text-ink-soft">
+            We sent a code to <span className="font-mono text-ink">{sentTo}</span>.
+            Enter it to finish.
+          </p>
+          {devCode && (
+            /* Enrolment needs it as much as sign-in does: without SMS, a
+               new account has no other way to see the code that confirms
+               its own second factor. */
+            <div className="mb-4 rounded-md border border-caution bg-caution-soft px-3 py-2.5">
+              <p className="eyebrow mb-1 text-caution">
+                No SMS gateway configured — code shown here
+              </p>
+              <p className="text-center font-mono text-2xl tracking-[0.3em] text-ink">
+                {devCode}
+              </p>
+              <p className="mt-1 text-micro text-ink-soft">
+                This will stop appearing as soon as SMS sending is set up.
+              </p>
+            </div>
+          )}
+        </>
       ) : (
         <>
           <p className="mb-3 text-sm text-ink-soft">

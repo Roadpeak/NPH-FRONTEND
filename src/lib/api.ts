@@ -224,6 +224,14 @@ export interface LoginResult {
   enrolToken?: string;
   /** Masked destination for an SMS factor, e.g. +2547***678. */
   sentTo?: string;
+  /**
+   * The sign-in code itself, while no SMS gateway is configured.
+   *
+   * The API returns this only outside production, only with NHP_SHOW_OTP=1,
+   * and only while the console SMS provider is in use — so it vanishes on
+   * its own the moment a real gateway is set up. Never assume it is there.
+   */
+  devCode?: string;
 }
 
 /** What every registration form collects about a person. */
@@ -687,7 +695,7 @@ export const auth = {
     api.post<LoginResult>('/auth/mfa', { mfaToken, code }),
 
   resendMfaCode: (mfaToken: string) =>
-    api.post<{ sentTo: string; expiresInMinutes: number }>('/auth/mfa/resend', {
+    api.post<{ sentTo: string; expiresInMinutes: number; devCode?: string }>('/auth/mfa/resend', {
       mfaToken,
     }),
 
@@ -735,7 +743,7 @@ export const auth = {
     api.post<{ confirmed: boolean }>('/auth/mfa/confirm', { code, enrolToken }),
 
   enrolSms: (enrolToken?: string) =>
-    api.post<{ sentTo: string; expiresInMinutes: number }>('/auth/mfa/sms/enrol', {
+    api.post<{ sentTo: string; expiresInMinutes: number; devCode?: string }>('/auth/mfa/sms/enrol', {
       enrolToken,
     }),
 

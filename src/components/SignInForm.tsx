@@ -43,6 +43,14 @@ export function SignInForm({
   const [mfaToken, setMfaToken] = useState('');
   const [mfaMode, setMfaMode] = useState<'SMS' | 'TOTP'>('TOTP');
   const [sentTo, setSentTo] = useState<string | null>(null);
+  /**
+   * The code, shown on screen while there is no SMS gateway.
+   *
+   * The API sends this only outside production and only while the console
+   * SMS provider is configured, so it disappears by itself once real SMS is
+   * wired up — there is no flag here to remember to turn off.
+   */
+  const [devCode, setDevCode] = useState<string | null>(null);
   const [resent, setResent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -77,6 +85,7 @@ export function SignInForm({
         setMfaToken(result.mfaToken!);
         setMfaMode(result.mfaMode ?? 'TOTP');
         setSentTo(result.sentTo ?? null);
+        setDevCode(result.devCode ?? null);
         setStage('MFA');
       } else {
         setSession(result.accessToken!, result.csrfToken ?? null);
@@ -221,6 +230,28 @@ export function SignInForm({
             )}
           </p>
 
+          {devCode && (
+            /*
+              A stopgap, and it says so.
+
+              Labelled loudly rather than shown as a neutral hint, because
+              the one failure mode that matters is this reaching a real
+              deployment unnoticed. Anyone who sees it should be able to
+              tell instantly that it is not meant to be there.
+            */
+            <div className="mb-4 rounded-md border border-caution bg-caution-soft px-3 py-2.5">
+              <p className="eyebrow mb-1 text-caution">
+                No SMS gateway configured — code shown here
+              </p>
+              <p className="text-center font-mono text-2xl tracking-[0.3em] text-ink">
+                {devCode}
+              </p>
+              <p className="mt-1 text-micro text-ink-soft">
+                This will stop appearing as soon as SMS sending is set up.
+              </p>
+            </div>
+          )}
+
           <Field id="code" label="Authentication code">
             <input
               id="code"
@@ -251,6 +282,7 @@ export function SignInForm({
                 try {
                   const result = await auth.resendMfaCode(mfaToken);
                   setSentTo(result.sentTo);
+                  setDevCode(result.devCode ?? null);
                   // Once only: each resend invalidates the previous code,
                   // so repeated taps just confuse the person signing in.
                   setResent(true);
