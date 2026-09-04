@@ -59,8 +59,22 @@ interface RecordedDiagnosis {
 interface RecordedMedication {
   code: string;
   name: string;
-  regimen: string;
+  /** Pre-filled from the formulary, then edited. */
+  dose: string;
+  frequency: string;
+  durationDays: string;
+  /** The formulary default, kept so a change is visible as a change. */
+  defaultRegimen: string;
 }
+
+/**
+ * Frequencies a prescriber can pick without typing.
+ *
+ * The formulary's own value is always offered even when it is not one of
+ * these — a drug dosed 'every 72 hours' must not silently become TDS
+ * because the dropdown had no room for it.
+ */
+const FREQUENCIES = ['OD', 'BD', 'TDS', 'QDS', 'PRN', 'STAT'];
 
 const STEPS = [
   'Presentation',
@@ -236,9 +250,25 @@ function Encounter() {
       return;
     }
 
+    /*
+     * The formulary dose is a STARTING POINT, not the prescription.
+     *
+     * The same medicine is dosed differently by indication, severity, weight
+     * and renal function — amoxicillin for otitis media is not amoxicillin
+     * for severe pneumonia. Locking the default in forced a clinician to
+     * either accept a dose they did not mean or abandon the screen, and the
+     * second is how a system stops being used.
+     */
     setMedications((prev) => [
       ...prev,
-      { code: drug.c, name: drug.g, regimen: `${drug.d} ${drug.fr}` },
+      {
+        code: drug.c,
+        name: drug.g,
+        dose: drug.d,
+        frequency: drug.fr,
+        durationDays: drug.du ?? '',
+        defaultRegimen: `${drug.d} ${drug.fr}`,
+      },
     ]);
   }
 
@@ -413,17 +443,103 @@ function Encounter() {
               <section className="mt-6 border-t border-rule pt-5">
                 <p className="eyebrow mb-2">Prescribed</p>
                 <ul className="space-y-1.5">
-                  {medications.map((m) => (
-                    <li
-                      key={m.code}
-                      className="flex items-center gap-3 rounded border border-rule bg-surface px-3 py-2"
-                    >
-                      <span className="min-w-0 flex-1 truncate text-sm">{m.name}</span>
-                      <span className="font-mono text-micro text-ink-soft">
-                        {m.regimen}
-                      </span>
-                    </li>
-                  ))}
+                  {medications.map((m, i) => {
+                    const edited = `${m.dose} ${m.frequency}` !== m.defaultRegimen;
+                    return (
+                      <li
+                        key={m.code}
+                        className="rounded border border-rule bg-surface px-3 py-2"
+                      >
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                            {m.name}
+                          </span>
+                          {edited && (
+                            /* Says the dose was changed from the formulary's.
+                               A pharmacist reading this later should not have
+                               to remember what the default was. */
+                            <span className="chip chip-caution">ADJUSTED</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMedications((prev) => prev.filter((_, j) => j !== i))
+                            }
+                            className="text-micro text-ink-faint underline hover:text-critical"
+                          >
+                            Remove
+                          </button>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <label className="block">
+                            <span className="eyebrow mb-0.5 block">Dose</span>
+                            <input
+                              value={m.dose}
+                              onChange={(e) =>
+                                setMedications((prev) =>
+                                  prev.map((x, j) =>
+                                    j === i ? { ...x, dose: e.target.value } : x,
+                                  ),
+                                )
+                              }
+                              className="w-full rounded border border-rule bg-surface px-2 py-1 font-mono text-sm"
+                            />
+                          </label>
+
+                          <label className="block">
+                            <span className="eyebrow mb-0.5 block">Frequency</span>
+                            <select
+                              value={m.frequency}
+                              onChange={(e) =>
+                                setMedications((prev) =>
+                                  prev.map((x, j) =>
+                                    j === i ? { ...x, frequency: e.target.value } : x,
+                                  ),
+                                )
+                              }
+                              className="w-full rounded border border-rule bg-surface px-2 py-1 font-mono text-sm"
+                            >
+                              {/* The formulary's own value first, even when it
+                                  is not a standard code — a drug dosed every
+                                  72 hours must not become TDS by default. */}
+                              {[m.frequency, ...FREQUENCIES.filter((f) => f !== m.frequency)].map(
+                                (f) => (
+                                  <option key={f} value={f}>
+                                    {f}
+                                  </option>
+                                ),
+                              )}
+                            </select>
+                          </label>
+
+                          <label className="block">
+                            <span className="eyebrow mb-0.5 block">Days</span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={m.durationDays}
+                              placeholder="ongoing"
+                              onChange={(e) =>
+                                setMedications((prev) =>
+                                  prev.map((x, j) =>
+                                    j === i ? { ...x, durationDays: e.target.value } : x,
+                                  ),
+                                )
+                              }
+                              className="w-full rounded border border-rule bg-surface px-2 py-1 font-mono text-sm"
+                            />
+                          </label>
+                        </div>
+
+                        {edited && (
+                          <p className="mt-1.5 text-micro text-ink-faint">
+                            Formulary default: {m.defaultRegimen}
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
             )}
@@ -497,9 +613,19 @@ function Encounter() {
                 <button
                   key={alt}
                   onClick={() => {
+                    // An alternative arrives with no formulary row attached,
+                    // so its regimen starts blank rather than borrowing a
+                    // dose from the drug it is replacing.
                     setMedications((p) => [
                       ...p,
-                      { code: alt, name: alt, regimen: 'standard adult dose' },
+                      {
+                        code: alt,
+                        name: alt,
+                        dose: '',
+                        frequency: 'TDS',
+                        durationDays: '',
+                        defaultRegimen: '',
+                      },
                     ]);
                     setInterrupt(null);
                   }}

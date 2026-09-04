@@ -127,13 +127,32 @@ export default function MinistryPage() {
           router.replace(PORTALS.ministry.signInPath);
           return;
         }
+        /*
+         * Each panel loads on its own terms.
+         *
+         * The Ministry roles are deliberately split — an ANALYST reads
+         * aggregates and only SURVEILLANCE reads notifiable signals — so a
+         * 403 on one panel is the system working, not an outage. Under
+         * Promise.all that single refusal rejected the whole batch and
+         * blanked six panels the analyst was entitled to read, which looks
+         * exactly like a broken dashboard.
+         *
+         * A panel the role cannot reach stays empty; anything else still
+         * throws, because a genuine failure must not be swallowed into a
+         * silent zero on a screen where zero is a claim about disease.
+         */
+        const allowEmpty = <T,>(fallback: T) => (err: unknown) => {
+          if (err instanceof ApiError && err.code === 'WRONG_MINISTRY_ROLE') return fallback;
+          throw err;
+        };
+
         const [c, b, r, w, s, g, p] = await Promise.all([
           ministry.counties(),
           ministry.burden('1F41.0'),
-          ministry.referralClosure(),
-          ministry.workforce(),
-          ministry.surveillance(),
-          ministry.careGaps(),
+          ministry.referralClosure().catch(allowEmpty([])),
+          ministry.workforce().catch(allowEmpty([])),
+          ministry.surveillance().catch(allowEmpty([])),
+          ministry.careGaps().catch(allowEmpty([])),
           ministry.provenance(),
         ]);
         if (cancelled) return;
