@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { register, geo, ApiError, type CountyOption, type SubcountyOption } from '@/lib/api';
+import {
+  register,
+  geo,
+  directors,
+  ApiError,
+  type CountyOption,
+  type SubcountyOption,
+} from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { PortalShell, Field, inputClass, SubmitButton, ErrorNote } from '@/components/PortalShell';
 
@@ -58,7 +65,47 @@ export default function FacilityRegisterPage() {
   const [practiceLicenceNo, setPracticeLicenceNo] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [ownerNationalId, setOwnerNationalId] = useState('');
-  const [adminLicenceNumber, setAdminLicenceNumber] = useState('');
+
+  /*
+   * How the director identifies themselves. 'new' is the default because
+   * the common case is an owner who has never used the system; a clinician
+   * who already has an account is the exception, not the rule.
+   */
+  const [directorMode, setDirectorMode] = useState<'new' | 'existing'>('new');
+  const [directorName, setDirectorName] = useState('');
+  const [directorNationalId, setDirectorNationalId] = useState('');
+  const [directorPhone, setDirectorPhone] = useState('');
+  const [directorPassword, setDirectorPassword] = useState('');
+  const [directorSex, setDirectorSex] = useState('');
+  const [directorDateOfBirth, setDirectorDateOfBirth] = useState('');
+  const [directorSearch, setDirectorSearch] = useState('');
+  const [directorFound, setDirectorFound] = useState<{
+    personId: string;
+    givenName: string;
+    familyName: string;
+  } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  async function findDirector() {
+    setSearchError(null);
+    setDirectorFound(null);
+    setSearching(true);
+    try {
+      const r = await directors.search(directorSearch.trim());
+      if (!r.match) {
+        setSearchError(
+          'No account matches that. Check the number, or register as a new director above.',
+        );
+        return;
+      }
+      setDirectorFound(r.match);
+    } catch (err) {
+      setSearchError(err instanceof ApiError ? err.message : 'Could not search');
+    } finally {
+      setSearching(false);
+    }
+  }
   /*
    * The FACILITY's contact details, not the registrant's.
    *
@@ -193,7 +240,17 @@ export default function FacilityRegisterPage() {
               practiceLicenceNo: practiceLicenceNo || undefined,
               ownerName: ownerName || undefined,
               ownerNationalId: ownerNationalId || undefined,
-              adminLicenceNumber: adminLicenceNumber || undefined,
+              // Exactly one of these three; the API refuses more.
+              ...(directorMode === 'existing' && directorFound
+                ? { directorPersonId: directorFound.personId }
+                : {
+                    directorNationalId: directorNationalId || undefined,
+                    directorName: directorName || undefined,
+                    directorPhone: directorPhone || undefined,
+                    directorPassword: directorPassword || undefined,
+                    directorSex: directorSex || undefined,
+                    directorDateOfBirth: directorDateOfBirth || undefined,
+                  }),
             }
           : {}),
       });
@@ -239,10 +296,30 @@ export default function FacilityRegisterPage() {
       title="Register a health facility"
       wide
       intro={
-        <p className="mb-4 max-w-prose text-sm text-ink-soft">
-          Register your facility against its Master Health Facility List code.
-          The Ministry approves it before any clinician can work here.
-        </p>
+        <>
+          <p className="mb-3 max-w-prose text-sm text-ink-soft">
+            Register your facility against its Master Health Facility List code.
+            The Ministry approves it before any clinician can work here.
+          </p>
+          {/*
+            Who runs the facility, said before anything else.
+
+            A hospital owner is usually a businessperson, and requiring a
+            clinical licence here excluded the people who actually own most
+            private hospitals in Kenya. The director sets their own password
+            below — the facility itself has none, because a shared
+            credential walks out with whoever leaves and makes every action
+            attributable to "the facility" rather than a person.
+          */}
+          <p className="mb-4 max-w-prose rounded-md border border-gov/30 bg-surface-alt px-4 py-3 text-sm">
+            <span className="font-semibold">
+              You do not need to be a doctor to register a facility.
+            </span>{' '}
+            The owner or director signs in, and sets their password below. If
+            you are also a health worker you can link that account instead, so
+            you keep one login for both.
+          </p>
+        </>
       }
     >
       <form onSubmit={submit}>
@@ -437,33 +514,235 @@ export default function FacilityRegisterPage() {
               is never shown back on this portal.
             </p>
 
-            <Field
-              id="adminLicenceNumber"
-              label="Your licence number, to administer this facility"
-            >
+            {/*
+              The director, and their password.
+
+              A hospital owner is usually a businessperson, so a clinical
+              licence cannot be the only way in. Two modes, and the default
+              is the common case: an owner who has never used the system.
+            */}
+            <fieldset className="mb-4">
+              <legend className="eyebrow mb-2">Who runs this facility</legend>
+
+              <div className="mb-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDirectorMode('new')}
+                  className={`rounded-md border px-3 py-1.5 text-sm font-semibold ${
+                    directorMode === 'new'
+                      ? 'border-gov bg-gov text-surface'
+                      : 'border-rule text-ink-soft'
+                  }`}
+                >
+                  I am the owner or director
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDirectorMode('existing')}
+                  className={`rounded-md border px-3 py-1.5 text-sm font-semibold ${
+                    directorMode === 'existing'
+                      ? 'border-gov bg-gov text-surface'
+                      : 'border-rule text-ink-soft'
+                  }`}
+                >
+                  Link my health worker account
+                </button>
+              </div>
+
+              {directorMode === 'new' ? (
+                <>
+                  <div className="grid gap-x-4 sm:grid-cols-2">
+                    <Field id="directorName" label="Your full name">
+                      <input
+                        id="directorName"
+                        required
+                        value={directorName}
+                        onChange={(e) => setDirectorName(e.target.value)}
+                        className={inputClass}
+                      />
+                    </Field>
+                    <Field id="directorNationalId" label="Your National ID">
+                      <input
+                        id="directorNationalId"
+                        required
+                        value={directorNationalId}
+                        onChange={(e) => setDirectorNationalId(e.target.value)}
+                        className={`${inputClass} font-mono`}
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="grid gap-x-4 sm:grid-cols-2">
+                    <Field
+                      id="directorPhone"
+                      label="Your phone number"
+                      hint="You sign in with this, and it receives your security codes."
+                    >
+                      <input
+                        id="directorPhone"
+                        type="tel"
+                        required
+                        value={directorPhone}
+                        onChange={(e) => setDirectorPhone(e.target.value)}
+                        placeholder="07XX XXX XXX"
+                        className={inputClass}
+                      />
+                    </Field>
+                    <Field id="directorDateOfBirth" label="Your date of birth">
+                      <input
+                        id="directorDateOfBirth"
+                        type="date"
+                        required
+                        value={directorDateOfBirth}
+                        onChange={(e) => setDirectorDateOfBirth(e.target.value)}
+                        className={inputClass}
+                      />
+                    </Field>
+                  </div>
+
+                  <Field id="directorSex" label="Sex at birth">
+                    <select
+                      id="directorSex"
+                      required
+                      value={directorSex}
+                      onChange={(e) => setDirectorSex(e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Select…</option>
+                      <option value="FEMALE">Female</option>
+                      <option value="MALE">Male</option>
+                      <option value="INTERSEX">Intersex</option>
+                    </select>
+                  </Field>
+
+                  <Field
+                    id="directorPassword"
+                    label="Choose a password"
+                    hint="At least 12 characters. This is how you sign in to run the facility."
+                  >
+                    <input
+                      id="directorPassword"
+                      type="password"
+                      required
+                      minLength={12}
+                      value={directorPassword}
+                      onChange={(e) => setDirectorPassword(e.target.value)}
+                      className={inputClass}
+                    />
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field
+                    id="directorSearch"
+                    label="Your National ID or licence number"
+                    hint="We find the account you already have, so you keep one login."
+                  >
+                    <input
+                      id="directorSearch"
+                      value={directorSearch}
+                      onChange={(e) => setDirectorSearch(e.target.value)}
+                      placeholder="KMPDC/2026/H001"
+                      className={`${inputClass} font-mono`}
+                    />
+                  </Field>
+                  <button
+                    type="button"
+                    onClick={findDirector}
+                    disabled={searching || directorSearch.trim().length < 6}
+                    className="mb-2 rounded-md border border-gov px-3 py-1.5 text-sm font-semibold text-gov disabled:opacity-60"
+                  >
+                    {searching ? 'Searching…' : 'Find my account'}
+                  </button>
+
+                  {directorFound && (
+                    <p className="mb-2 rounded-md border border-good/40 bg-good-soft px-3 py-2 text-sm">
+                      Linking{' '}
+                      <span className="font-semibold">
+                        {directorFound.givenName} {directorFound.familyName}
+                      </span>
+                      . You will sign in with the password you already use.
+                    </p>
+                  )}
+                  {searchError && (
+                    <p className="mb-2 rounded-md border border-caution/40 bg-caution-soft px-3 py-2 text-micro text-caution">
+                      {searchError}
+                    </p>
+                  )}
+                </>
+              )}
+            </fieldset>
+            <p className="mb-3 text-micro text-ink-soft">
+              The Ministry checks these against the Business Registry, KRA and
+              its own register before approving. Give the numbers as they
+              appear on the certificates — no documents are uploaded.
+            </p>
+
+            <div className="grid gap-x-4 sm:grid-cols-2">
+              <Field id="businessRegNo" label="Business registration number">
+                <input
+                  id="businessRegNo"
+                  required
+                  value={businessRegNo}
+                  onChange={(e) => setBusinessRegNo(e.target.value.toUpperCase())}
+                  placeholder="PVT-ABC1234"
+                  autoComplete="off"
+                  className={`${inputClass} font-mono`}
+                />
+              </Field>
+
+              <Field id="kraPin" label="KRA PIN">
+                <input
+                  id="kraPin"
+                  value={kraPin}
+                  onChange={(e) => setKraPin(e.target.value.toUpperCase())}
+                  placeholder="P051234567X"
+                  autoComplete="off"
+                  className={`${inputClass} font-mono`}
+                />
+              </Field>
+
+              <Field
+                id="practiceLicenceNo"
+                label="Practice licence number (optional)"
+              >
+                <input
+                  id="practiceLicenceNo"
+                  value={practiceLicenceNo}
+                  onChange={(e) => setPracticeLicenceNo(e.target.value.toUpperCase())}
+                  autoComplete="off"
+                  className={`${inputClass} font-mono`}
+                />
+              </Field>
+
+              <Field id="ownerName" label="Owner's full name">
+                <input
+                  id="ownerName"
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  autoComplete="off"
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+
+            <Field id="ownerNationalId" label="Owner's National ID">
               <input
-                id="adminLicenceNumber"
-                /* Required. Without it the facility registers with no
-                   pending administrator, and approval then creates a
-                   facility nobody can administer — silently, with no route
-                   to fix it from any screen. */
-                required
-                value={adminLicenceNumber}
-                onChange={(e) => setAdminLicenceNumber(e.target.value.toUpperCase())}
-                placeholder="KMPDC/2026/H001"
+                id="ownerNationalId"
+                inputMode="numeric"
+                value={ownerNationalId}
+                onChange={(e) => setOwnerNationalId(e.target.value.replace(/\D/g, ''))}
+                maxLength={12}
                 autoComplete="off"
                 className={`${inputClass} font-mono`}
               />
             </Field>
-            <p className="-mt-2 text-micro text-ink-faint">
-              {/* Says plainly why this is asked for and when it takes
-                  effect. Nobody administers a facility the Ministry has
-                  not yet verified. */}
-              Whoever registers a private facility runs it. Register on the
-              health worker portal first, then give that licence number here —
-              you become the administrator once the Ministry approves the
-              facility, not before.
+            <p className="-mt-2 mb-4 text-micro text-ink-faint">
+              Stored encrypted and read only by the registrar checking it. It
+              is never shown back on this portal.
             </p>
+
+
           </fieldset>
         )}
 

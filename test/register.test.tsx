@@ -253,12 +253,14 @@ describe('facility registration', () => {
         screen.getByLabelText(/business registration number/i),
         'PVT-ABC1234',
       );
-      // Required: without it, approval creates a facility nobody can
-      // administer, silently and with no route to fix it.
-      await user.type(
-        screen.getByLabelText(/your licence number/i),
-        'KMPDC/2026/H001',
-      );
+      // The director, who need not be a clinician. Without them, approval
+      // creates a facility nobody can administer.
+      await user.type(screen.getByLabelText(/your full name/i), 'Grace Owner');
+      await user.type(screen.getByLabelText(/your national id/i), '31445566');
+      await user.type(screen.getByLabelText(/your phone number/i), '0720555111');
+      await user.type(screen.getByLabelText(/your date of birth/i), '1975-04-02');
+      await user.selectOptions(screen.getByLabelText(/sex at birth/i), 'FEMALE');
+      await user.type(screen.getByLabelText(/choose a password/i), 'director-pass-12');
     }
   }
 
@@ -285,7 +287,14 @@ describe('facility registration', () => {
     await maybe(/facility phone number/i, '0733111222');
     if (ownership !== 'PUBLIC_MOH' && ownership !== 'PUBLIC_OTHER') {
       await maybe(/business registration number/i, 'PVT-ABC1234');
-      await maybe(/your licence number/i, 'KMPDC/2026/H001');
+      await maybe(/your full name/i, 'Grace Owner');
+      await maybe(/your national id/i, '31445566');
+      await maybe(/your phone number/i, '0720555111');
+      await maybe(/your date of birth/i, '1975-04-02');
+      if (skip.source !== /sex at birth/i.source) {
+        await user.selectOptions(screen.getByLabelText(/sex at birth/i), 'FEMALE');
+      }
+      await maybe(/choose a password/i, 'director-pass-12');
     }
   }
 
@@ -380,16 +389,40 @@ describe('facility registration', () => {
     );
   });
 
-  it('will not submit a private facility without an administrator licence', async () => {
+  it('will not submit a private facility without a director', async () => {
     const user = userEvent.setup();
     render(<FacilityRegister />);
-    await fillFacilityWithout(user, 'PRIVATE_FOR_PROFIT', /your licence number/i);
+    await fillFacilityWithout(user, 'PRIVATE_FOR_PROFIT', /choose a password/i);
     await user.click(screen.getByRole('button', { name: /register/i }));
 
-    // Without it the facility registers with no pending administrator, and
+    // Without a director the facility registers with nobody pending, and
     // approval then creates a facility nobody can administer — silently,
     // with no route to fix it from any screen.
     expect(registerStub.facility).not.toHaveBeenCalled();
+  });
+
+  it('does not require a clinical licence of the owner', async () => {
+    const user = userEvent.setup();
+    render(<FacilityRegister />);
+    await user.selectOptions(screen.getByLabelText(/ownership/i), 'PRIVATE_FOR_PROFIT');
+
+    // A hospital owner is usually a businessperson. Requiring a KMPDC
+    // number here excluded the people who own most private hospitals in
+    // Kenya, and there is no licence field on the default path at all.
+    expect(screen.queryByLabelText(/your licence number/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/choose a password/i)).toBeInTheDocument();
+  });
+
+  it('offers the owner a way to link an existing health worker account', async () => {
+    const user = userEvent.setup();
+    render(<FacilityRegister />);
+    await user.selectOptions(screen.getByLabelText(/ownership/i), 'PRIVATE_FOR_PROFIT');
+    await user.click(screen.getByRole('button', { name: /link my health worker account/i }));
+
+    // A clinician who owns a clinic should keep one login, not hold two
+    // half-accounts that drift apart.
+    expect(screen.getByLabelText(/national id or licence number/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/choose a password/i)).not.toBeInTheDocument();
   });
 
   it('will not submit any facility without a contact number', async () => {

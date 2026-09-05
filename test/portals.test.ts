@@ -167,3 +167,38 @@ describe('every portal lands on a workspace, not a sign-in screen', () => {
     expect(PORTALS.facility.landingPath).toBe('/facility/reception');
   });
 });
+
+describe('routing a director who is not a clinician', () => {
+  it('lands on the facility portal, not the citizen one', () => {
+    // A hospital owner is usually a businessperson. With no practitionerId
+    // they used to fall through to the citizen portal — the facility portal
+    // was literally unreachable for the people who own the facilities.
+    expect(
+      portalFor({
+        practitionerId: null,
+        ministryUserId: null,
+        personId: 'p1',
+        facilityDirectorOf: 'f1',
+      }).id,
+    ).toBe('facility');
+  });
+
+  it('still sends a plain citizen to their own record', () => {
+    expect(
+      portalFor({ practitionerId: null, ministryUserId: null, personId: 'p1' }).id,
+    ).toBe('citizen');
+  });
+
+  it('does not override a Ministry account', () => {
+    // A Ministry user who also directs a facility is at work when they sign
+    // in to the Ministry portal; national scope is the stronger claim.
+    expect(
+      portalFor({
+        practitionerId: null,
+        ministryUserId: 'm1',
+        personId: 'p1',
+        facilityDirectorOf: 'f1',
+      }).id,
+    ).toBe('ministry');
+  });
+});

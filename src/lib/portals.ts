@@ -124,6 +124,12 @@ export const PORTAL_LIST: Portal[] = [
  * door they signed in through decides: someone who went to the facility
  * sign-in wants the facility portal, and everyone else keeps the clinical
  * one they had before.
+ *
+ * A DIRECTOR is the case that needs no deciding. A hospital owner is
+ * usually a businessperson, holding no licence at all, so there is no
+ * clinical portal they could belong to — the facility portal is the only
+ * one that means anything to them. Checked before the citizen fallback,
+ * which is where they used to land.
  */
 export function portalFor(
   me: {
@@ -131,6 +137,7 @@ export function portalFor(
     ministryUserId: string | null;
     personId: string | null;
     facilityAdminOf?: string | null;
+    facilityDirectorOf?: string | null;
   },
   /** The portal whose sign-in form they used, when there was one. */
   cameFrom?: Portal,
@@ -140,5 +147,9 @@ export function portalFor(
     return PORTALS.worker;
   }
   if (me.ministryUserId) return PORTALS.ministry;
+  // Before the citizen fallback: a director with no licence is not a
+  // patient looking at their own record, and sending them there was how a
+  // non-clinical owner found the facility portal unreachable.
+  if (me.facilityDirectorOf) return PORTALS.facility;
   return PORTALS.citizen;
 }

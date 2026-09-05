@@ -323,6 +323,19 @@ export const register = {
     practiceLicenceNo?: string;
     ownerNationalId?: string;
     ownerName?: string;
+    /**
+     * The director, one of three ways — a new person who sets their own
+     * password, an account already found by the search, or a licence for a
+     * clinician-owner. A hospital owner is usually a businessperson, so a
+     * licence cannot be the only route.
+     */
+    directorNationalId?: string;
+    directorName?: string;
+    directorPhone?: string;
+    directorPassword?: string;
+    directorSex?: string;
+    directorDateOfBirth?: string;
+    directorPersonId?: string;
     /** Whoever registers a private facility becomes its administrator. */
     adminLicenceNumber?: string;
   }) =>
@@ -689,6 +702,20 @@ export const photo = {
     api.post<{ updated: boolean }>('/persons/me/photo', { photo: dataUrl }),
 };
 
+/**
+ * Finding the person who will direct a facility.
+ *
+ * Returns a name and nothing else, one match at most — enough to confirm
+ * "yes, that is me" without the register answering "who is 12345678" in
+ * bulk.
+ */
+export const directors = {
+  search: (identifier: string) =>
+    api.get<{
+      match: { personId: string; givenName: string; familyName: string } | null;
+    }>(`/facilities/directors/search?identifier=${encodeURIComponent(identifier)}`),
+};
+
 export const geo = {
   counties: () => api.get<CountyOption[]>('/geo/counties'),
   subcounties: (countyId: string) =>
@@ -732,6 +759,9 @@ export const auth = {
        * cannot tell them from a treating clinician.
        */
       facilityAdminOf: string | null;
+      /** Set when this account DIRECTS a facility without holding a licence. */
+      facilityDirectorOf?: string | null;
+      facilityDirectorRole?: string | null;
       facilityAdminOfName: string | null;
     }>('/auth/me'),
 
