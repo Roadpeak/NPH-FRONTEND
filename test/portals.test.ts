@@ -232,6 +232,18 @@ describe('entering the portal you actually asked for', () => {
     ).toBeNull();
   });
 
+  it('tells the owner of a PENDING facility to wait, not to ask somebody', () => {
+    // They registered the facility and named themselves its owner. Telling
+    // them to "ask whoever runs the facility to add you" is doubly wrong:
+    // they are that person, and there is nothing to do but wait.
+    const refusal = refusalFor(
+      { ...nobody, facilityAwaitingApproval: 'Wambui Memorial Clinic' },
+      PORTALS.facility,
+    );
+    expect(refusal).toMatch(/waiting for the Ministry/i);
+    expect(refusal).not.toMatch(/ask whoever runs/i);
+  });
+
   it('refuses a citizen at the health worker door', () => {
     expect(refusalFor(nobody, PORTALS.worker)).toMatch(/no practising licence/i);
   });

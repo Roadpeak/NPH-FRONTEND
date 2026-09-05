@@ -826,6 +826,8 @@ export const auth = {
       facilityDirectorRole?: string | null;
       /** False for reception staff, who see only the waiting room. */
       canAdministerFacility?: boolean;
+      /** A facility they own that the Ministry has not approved yet. */
+      facilityAwaitingApproval?: string | null;
       /** Set when somebody else chose this password. */
       mustChangePassword?: boolean;
       facilityAdminOfName: string | null;

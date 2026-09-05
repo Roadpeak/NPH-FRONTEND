@@ -129,6 +129,8 @@ export function refusalFor(
     personId: string | null;
     facilityAdminOf?: string | null;
     facilityDirectorOf?: string | null;
+    /** A facility they own that the Ministry has not approved yet. */
+    facilityAwaitingApproval?: string | null;
   },
   portal: Portal,
 ): string | null {
@@ -136,10 +138,19 @@ export function refusalFor(
     case 'facility':
       // Either kind of link will do: a practitioner administering one, or
       // a person directing or working at one.
-      return me.facilityAdminOf || me.facilityDirectorOf
-        ? null
-        : 'This account is not linked to a facility. Ask whoever runs the ' +
-            'facility to add you, then sign in again.';
+      if (me.facilityAdminOf || me.facilityDirectorOf) return null;
+      // The named owner of a facility still in the queue. Telling them to
+      // ask whoever runs the facility is doubly wrong: they are that
+      // person, and there is nothing anybody can do but wait.
+      if (me.facilityAwaitingApproval) {
+        return `${me.facilityAwaitingApproval} is waiting for the Ministry to ` +
+          'approve it. You will be able to sign in here once it is approved — ' +
+          'nothing more is needed from you.';
+      }
+      return (
+        'This account is not linked to a facility. Ask whoever runs the ' +
+        'facility to add you, then sign in again.'
+      );
 
     case 'worker':
       return me.practitionerId
