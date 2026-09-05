@@ -59,6 +59,15 @@ export default function FacilityRegisterPage() {
   const [ownerName, setOwnerName] = useState('');
   const [ownerNationalId, setOwnerNationalId] = useState('');
   const [adminLicenceNumber, setAdminLicenceNumber] = useState('');
+  /*
+   * The FACILITY's contact details, not the registrant's.
+   *
+   * A registrar has to be able to ask about the ownership evidence before
+   * approving, and a referral has to reach the place it names. Neither is
+   * served by the personal number of whoever filled this form in.
+   */
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
 
   const [counties, setCounties] = useState<CountyOption[]>([]);
   const [subcounties, setSubcounties] = useState<SubcountyOption[]>([]);
@@ -102,6 +111,8 @@ export default function FacilityRegisterPage() {
         locality: locality || undefined,
         latitude: Number(latitude),
         longitude: Number(longitude),
+        phone: phone || undefined,
+        email: email || undefined,
         // Sent only when they apply. A public facility that carried these
         // would be asserting an ownership it does not have.
         ...(chosen && !chosen.isPublic
@@ -266,6 +277,25 @@ export default function FacilityRegisterPage() {
             <legend className="px-1.5 text-sm font-semibold">
               Ownership and legality
             </legend>
+
+            {/* Promoted from a micro-hint under a field nobody reads. A
+                facility is not an account: you sign in as YOURSELF, a
+                registered practitioner. Somebody who reaches the end of
+                this form still looking for a password has been failed by
+                the form, not by their own reading. */}
+            <p className="mb-3 rounded-md border border-caution/40 bg-caution-soft px-3 py-2.5 text-sm text-caution">
+              <span className="font-semibold">
+                You need a health worker account before you can run a facility.
+              </span>{' '}
+              A facility has no password of its own — you sign in as yourself,
+              with the licence number and password from your health worker
+              registration.{' '}
+              <Link href={PORTALS.worker.registerPath} className="underline">
+                Register as a health worker
+              </Link>{' '}
+              first if you have not already, then come back and give that
+              licence number below.
+            </p>
             <p className="mb-3 text-micro text-ink-soft">
               The Ministry checks these against the Business Registry, KRA and
               its own register before approving. Give the numbers as they
@@ -342,6 +372,11 @@ export default function FacilityRegisterPage() {
             >
               <input
                 id="adminLicenceNumber"
+                /* Required. Without it the facility registers with no
+                   pending administrator, and approval then creates a
+                   facility nobody can administer — silently, with no route
+                   to fix it from any screen. */
+                required
                 value={adminLicenceNumber}
                 onChange={(e) => setAdminLicenceNumber(e.target.value.toUpperCase())}
                 placeholder="KMPDC/2026/H001"
@@ -413,6 +448,38 @@ export default function FacilityRegisterPage() {
             className={inputClass}
           />
         </Field>
+
+        {/* The facility's own contact details. A registrar has to be able to
+            ask about the ownership evidence before approving, and a referral
+            has to reach the place it names — neither is served by the
+            personal number of whoever filled this form in. */}
+        <div className="grid gap-x-4 sm:grid-cols-2">
+          <Field
+            id="phone"
+            label="Facility phone number"
+            hint="The facility's own line, not your personal number."
+          >
+            <input
+              id="phone"
+              type="tel"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="07XX XXX XXX"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field id="email" label="Facility email" hint="Optional.">
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+        </div>
 
         <div className="grid gap-x-4 sm:grid-cols-2">
           <Field id="latitude" label="Latitude">

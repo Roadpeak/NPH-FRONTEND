@@ -242,6 +242,10 @@ describe('facility registration', () => {
     await user.type(screen.getByLabelText(/latitude/i), '-0.0917');
     await user.type(screen.getByLabelText(/longitude/i), '34.768');
 
+    // The facility's own line. A registrar has to be able to ask about the
+    // ownership evidence before approving.
+    await user.type(screen.getByLabelText(/facility phone number/i), '0733111222');
+
     // A non-public facility must assert its own legality; the Ministry
     // checks the number against the Business Registry before approving.
     if (ownership !== 'PUBLIC_MOH' && ownership !== 'PUBLIC_OTHER') {
@@ -249,6 +253,39 @@ describe('facility registration', () => {
         screen.getByLabelText(/business registration number/i),
         'PVT-ABC1234',
       );
+      // Required: without it, approval creates a facility nobody can
+      // administer, silently and with no route to fix it.
+      await user.type(
+        screen.getByLabelText(/your licence number/i),
+        'KMPDC/2026/H001',
+      );
+    }
+  }
+
+  /** Fills every required field EXCEPT the one named, to prove it is required. */
+  async function fillFacilityWithout(
+    user: ReturnType<typeof userEvent.setup>,
+    ownership: string,
+    skip: RegExp,
+  ) {
+    const maybe = async (label: RegExp, value: string) => {
+      if (skip.source === label.source) return;
+      await user.type(screen.getByLabelText(label), value);
+    };
+    await maybe(/mfl code/i, 'MFL-12345');
+    await maybe(/facility name/i, 'Migosi Health Centre');
+    await user.selectOptions(screen.getByLabelText(/keph level/i), '3');
+    await user.selectOptions(screen.getByLabelText(/ownership/i), ownership);
+    await waitFor(() => expect(screen.getByLabelText(/^county$/i)).toBeInTheDocument());
+    await user.selectOptions(screen.getByLabelText(/^county$/i), 'c1');
+    await waitFor(() => expect(screen.getByLabelText(/subcounty/i)).not.toBeDisabled());
+    await user.selectOptions(screen.getByLabelText(/subcounty/i), 's1');
+    await maybe(/latitude/i, '-0.0917');
+    await maybe(/longitude/i, '34.768');
+    await maybe(/facility phone number/i, '0733111222');
+    if (ownership !== 'PUBLIC_MOH' && ownership !== 'PUBLIC_OTHER') {
+      await maybe(/business registration number/i, 'PVT-ABC1234');
+      await maybe(/your licence number/i, 'KMPDC/2026/H001');
     }
   }
 
@@ -341,6 +378,42 @@ describe('facility registration', () => {
     await waitFor(() =>
       expect(screen.getByText(/awaiting Ministry approval/i)).toBeInTheDocument(),
     );
+  });
+
+  it('will not submit a private facility without an administrator licence', async () => {
+    const user = userEvent.setup();
+    render(<FacilityRegister />);
+    await fillFacilityWithout(user, 'PRIVATE_FOR_PROFIT', /your licence number/i);
+    await user.click(screen.getByRole('button', { name: /register/i }));
+
+    // Without it the facility registers with no pending administrator, and
+    // approval then creates a facility nobody can administer — silently,
+    // with no route to fix it from any screen.
+    expect(registerStub.facility).not.toHaveBeenCalled();
+  });
+
+  it('will not submit any facility without a contact number', async () => {
+    const user = userEvent.setup();
+    render(<FacilityRegister />);
+    await fillFacilityWithout(user, 'PUBLIC_MOH', /facility phone number/i);
+    await user.click(screen.getByRole('button', { name: /register/i }));
+
+    // A registrar with no way to reach the facility cannot ask about the
+    // ownership evidence they are meant to be checking.
+    expect(registerStub.facility).not.toHaveBeenCalled();
+  });
+
+  it('tells a registrant they need a health worker account first', async () => {
+    const user = userEvent.setup();
+    render(<FacilityRegister />);
+    await user.selectOptions(screen.getByLabelText(/ownership/i), 'PRIVATE_FOR_PROFIT');
+
+    // This used to be the faintest text on the page, under a field most
+    // people skip — so somebody could reach the end still looking for a
+    // password field that was never going to exist.
+    expect(
+      screen.getByText(/need a health worker account before you can run a facility/i),
+    ).toBeInTheDocument();
   });
 });
 

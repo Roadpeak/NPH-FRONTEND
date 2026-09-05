@@ -303,6 +303,14 @@ export const register = {
     locality?: string;
     latitude: number;
     longitude: number;
+    /**
+     * The FACILITY's own contact details, not the registrant's.
+     *
+     * A registrar has to be able to ask about the ownership evidence
+     * before approving, and a referral has to reach the place it names.
+     */
+    phone?: string;
+    email?: string;
     /*
      * Ownership evidence. Reference numbers rather than uploaded scans: a
      * registrar checks these against the Business Registry, KRA and the
