@@ -20,10 +20,18 @@ import { Icon, type IconName } from './icons';
  * why will keep trying.
  */
 
-const LINKS: Array<{ href: string; label: string; icon: IconName }> = [
-  { href: '/facility/reception', label: 'Reception', icon: 'citizen' },
-  { href: '/facility/staff', label: 'Staff', icon: 'clinician' },
-  { href: '/facility/profile', label: 'Facility', icon: 'facility' },
+/**
+ * `admin` marks a tab that only whoever runs the facility may open.
+ *
+ * Reception registers arrivals and sees the waiting room; the roster, the
+ * facility record and its directors are not theirs. The server refuses
+ * them either way — this only stops the nav offering tabs that will bounce
+ * them, which reads as the portal being broken rather than as a boundary.
+ */
+const LINKS: Array<{ href: string; label: string; icon: IconName; admin: boolean }> = [
+  { href: '/facility/reception', label: 'Reception', icon: 'citizen', admin: false },
+  { href: '/facility/staff', label: 'Staff', icon: 'clinician', admin: true },
+  { href: '/facility/profile', label: 'Facility', icon: 'facility', admin: true },
 ];
 
 export function FacilityNav() {
@@ -40,9 +48,24 @@ export function FacilityNav() {
    * waiting room. The desk wins, because it is the one with people in it.
    */
   const [deskName, setDeskName] = useState<string | null>(null);
+  /*
+   * Whether to offer the administrative tabs.
+   *
+   * Read from `auth.me()` rather than inferred from `/facility/me`
+   * failing: that endpoint is now admin-only, so a reception account gets
+   * null from it either way, and "the request failed" and "you may not see
+   * this" would be indistinguishable — one is a boundary, the other an
+   * outage. Defaults to false so a slow answer hides the tabs rather than
+   * flashing them.
+   */
+  const [canAdminister, setCanAdminister] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    auth
+      .me()
+      .then((m) => !cancelled && setCanAdminister(Boolean(m.canAdministerFacility)))
+      .catch(() => !cancelled && setCanAdminister(false));
     facility
       .me()
       .then((p) => !cancelled && setProfile(p))
@@ -73,7 +96,7 @@ export function FacilityNav() {
   return (
     <nav className="border-b border-rule bg-surface">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-1 gap-y-2 px-4 py-2 sm:px-6">
-        {LINKS.map((l) => {
+        {LINKS.filter((l) => !l.admin || canAdminister).map((l) => {
           const active = pathname === l.href || pathname.startsWith(`${l.href}/`);
           return (
             <Link

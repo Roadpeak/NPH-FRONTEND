@@ -9,6 +9,7 @@ import {
   ApiError,
   type FacilityProfile,
   type DirectorRow,
+  type StaffAccountRow,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { FacilityNav } from '@/components/FacilityNav';
@@ -77,6 +78,52 @@ export default function FacilityProfilePage() {
   const [busy, setBusy] = useState(false);
   const [dirError, setDirError] = useState<string | null>(null);
 
+  /*
+   * Reception staff — the people who work the desk.
+   *
+   * Separate from directors because they are a different job with a
+   * different reach: they see the waiting room and nothing else.
+   */
+  const [staff, setStaff] = useState<StaffAccountRow[]>([]);
+  const [staffName, setStaffName] = useState('');
+  const [staffId, setStaffId] = useState('');
+  const [staffPhone, setStaffPhone] = useState('');
+  const [staffPassword, setStaffPassword] = useState('');
+  const [staffBusy, setStaffBusy] = useState(false);
+  const [staffError, setStaffError] = useState<string | null>(null);
+
+  async function loadStaff() {
+    try {
+      const r = await facility.staffAccounts();
+      setStaff(r.staff);
+    } catch {
+      setStaff([]);
+    }
+  }
+
+  async function addStaff(event: React.FormEvent) {
+    event.preventDefault();
+    setStaffError(null);
+    setStaffBusy(true);
+    try {
+      await facility.addStaffAccount({
+        nationalId: staffId.trim(),
+        name: staffName.trim(),
+        phone: staffPhone.trim(),
+        password: staffPassword || undefined,
+      });
+      setStaffName('');
+      setStaffId('');
+      setStaffPhone('');
+      setStaffPassword('');
+      await loadStaff();
+    } catch (err) {
+      setStaffError(err instanceof ApiError ? err.message : 'Could not add');
+    } finally {
+      setStaffBusy(false);
+    }
+  }
+
   async function loadDirectors() {
     try {
       const d = await facility.directors();
@@ -122,6 +169,7 @@ export default function FacilityProfilePage() {
         const p = await facility.me();
         if (!cancelled) setProfile(p);
         if (!cancelled) await loadDirectors();
+        if (!cancelled) await loadStaff();
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && ['NO_SESSION', 'MFA_REQUIRED'].includes(err.code)) {
@@ -303,6 +351,108 @@ export default function FacilityProfilePage() {
               {dirError && (
                 <p className="mt-2 rounded-md border border-critical/30 bg-critical-soft px-3 py-2 text-micro text-critical">
                   {dirError}
+                </p>
+              )}
+            </section>
+
+            <section className="mt-6">
+              <h2 className="eyebrow mb-1">Reception staff</h2>
+              <p className="mb-3 max-w-prose text-micro text-ink-soft">
+                {/* States the reach, because "add staff" gives no clue what
+                    they will be able to see. */}
+                They register arrivals and see the waiting room. Not the staff
+                roster, not this record, not who runs the facility.
+              </p>
+
+              <ul className="mb-3 space-y-1.5">
+                {staff.map((m) => (
+                  <li
+                    key={m.id}
+                    className="flex items-center gap-3 rounded border border-rule bg-surface px-3 py-2"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                      {m.displayName}
+                    </span>
+                    {m.mustChangePassword && (
+                      /* Visible on purpose: until they change it, the
+                         password is one their employer chose and knows, and
+                         anything done on the account is deniable. */
+                      <span className="chip chip-caution">HAS NOT CHANGED PASSWORD</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await facility.removeStaffAccount(m.id);
+                        await loadStaff();
+                      }}
+                      className="text-micro text-ink-faint underline hover:text-critical"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+                {staff.length === 0 && (
+                  <li className="text-sm text-ink-faint">No reception staff yet.</li>
+                )}
+              </ul>
+
+              <form onSubmit={addStaff} className="grid gap-2 sm:grid-cols-2">
+                <label className="block">
+                  <span className="eyebrow mb-0.5 block">Full name</span>
+                  <input
+                    value={staffName}
+                    onChange={(e) => setStaffName(e.target.value)}
+                    className="w-full rounded border border-rule bg-surface px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="eyebrow mb-0.5 block">National ID</span>
+                  <input
+                    value={staffId}
+                    onChange={(e) => setStaffId(e.target.value)}
+                    className="w-full rounded border border-rule bg-surface px-2 py-1.5 font-mono text-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="eyebrow mb-0.5 block">Phone number</span>
+                  <input
+                    type="tel"
+                    value={staffPhone}
+                    onChange={(e) => setStaffPhone(e.target.value)}
+                    placeholder="07XX XXX XXX"
+                    className="w-full rounded border border-rule bg-surface px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="eyebrow mb-0.5 block">First password</span>
+                  <input
+                    type="password"
+                    value={staffPassword}
+                    onChange={(e) => setStaffPassword(e.target.value)}
+                    className="w-full rounded border border-rule bg-surface px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <div className="sm:col-span-2">
+                  <button
+                    type="submit"
+                    disabled={staffBusy || !staffName.trim() || !staffId.trim()}
+                    className="rounded-md bg-gov px-3 py-1.5 text-sm font-semibold text-surface disabled:opacity-60"
+                  >
+                    {staffBusy ? 'Adding…' : 'Add reception staff'}
+                  </button>
+                </div>
+              </form>
+              <p className="mt-1 max-w-prose text-micro text-ink-faint">
+                {/* The honest statement of what this costs, where the person
+                    doing it will read it. */}
+                You choose their first password, so you will know it — ask them
+                to change it as soon as they sign in. Somebody who already has
+                an account keeps their own password and simply gains the desk.
+              </p>
+
+              {staffError && (
+                <p className="mt-2 rounded-md border border-critical/30 bg-critical-soft px-3 py-2 text-micro text-critical">
+                  {staffError}
                 </p>
               )}
             </section>

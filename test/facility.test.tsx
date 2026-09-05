@@ -35,6 +35,9 @@ type Facility = typeof import('@/lib/api')['facility'];
 const facilityStub: { [K in keyof Facility]: ReturnType<typeof vi.fn> } = {
   me: vi.fn(),
   directors: vi.fn(async () => ({ facilityName: '', directors: [] })),
+  staffAccounts: vi.fn(async () => ({ facilityName: '', staff: [] })),
+  addStaffAccount: vi.fn(),
+  removeStaffAccount: vi.fn(),
   addDirector: vi.fn(),
   removeDirector: vi.fn(),
   staff: vi.fn(),
@@ -45,12 +48,15 @@ const facilityStub: { [K in keyof Facility]: ReturnType<typeof vi.fn> } = {
   closeArrival: vi.fn(),
 };
 
+/** Hoisted so a test can say what the signed-in account may administer. */
+const authStub = { logout: vi.fn(), me: vi.fn(async () => ({}) as never) };
+
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
   return {
     ...actual,
     facility: facilityStub,
-    auth: { ...actual.auth, logout: vi.fn(), me: vi.fn(async () => ({})) },
+    auth: { ...actual.auth, ...authStub },
     hasSession: () => true,
     restoreSession: async () => true,
   };
@@ -400,5 +406,43 @@ describe('the facility named in the navigation', () => {
     expect(container.textContent).toMatch(/Level 3/);
     // One building, so no "Runs …" clause repeating what "At …" said.
     expect(container.textContent).not.toMatch(/Runs/);
+  });
+});
+
+/**
+ * WHAT RECEPTION IS OFFERED.
+ *
+ * The server refuses a reception account the roster, the facility record
+ * and the directors list. The nav must not offer those tabs anyway — a tab
+ * that bounces you reads as the portal being broken rather than as a
+ * boundary somebody drew on purpose.
+ */
+describe('the navigation a reception account sees', () => {
+  it('offers only the waiting room', async () => {
+    authStub.me.mockResolvedValue({ canAdministerFacility: false } as never);
+    render(<ReceptionPage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /reception/i })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('link', { name: /^staff$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^facility$/i })).not.toBeInTheDocument();
+  });
+
+  it('offers everything to whoever runs the facility', async () => {
+    authStub.me.mockResolvedValue({ canAdministerFacility: true } as never);
+    render(<ReceptionPage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /^staff$/i })).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('link', { name: /^facility$/i })).toBeInTheDocument();
+  });
+
+  it('hides the admin tabs while the answer is still unknown', () => {
+    // A slow reply must not flash tabs the person cannot open.
+    authStub.me.mockImplementation(() => new Promise(() => {}) as never);
+    render(<ReceptionPage />);
+    expect(screen.queryByRole('link', { name: /^staff$/i })).not.toBeInTheDocument();
   });
 });

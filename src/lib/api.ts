@@ -413,8 +413,38 @@ export interface DirectorRow {
   isYou: boolean;
 }
 
+export interface StaffAccountRow {
+  id: string;
+  personId: string;
+  displayName: string;
+  status: string;
+  startedAt: string;
+  /** Still using the password their employer issued. */
+  mustChangePassword: boolean;
+}
+
 export const facility = {
   me: () => api.get<FacilityProfile>('/facility/me'),
+
+  /**
+   * Reception staff — Persons who work the desk and see only the queue.
+   */
+  staffAccounts: () =>
+    api.get<{ facilityName: string; staff: StaffAccountRow[] }>('/facility/staff-accounts'),
+
+  addStaffAccount: (input: {
+    nationalId: string;
+    name: string;
+    phone: string;
+    password?: string;
+  }) =>
+    api.post<StaffAccountRow & { credentialIssued: boolean }>(
+      '/facility/staff-accounts',
+      input,
+    ),
+
+  removeStaffAccount: (staffId: string) =>
+    api.delete<{ ended: boolean }>(`/facility/staff-accounts/${staffId}`),
 
   /**
    * The people who RUN the facility, as opposed to the clinicians in it.
@@ -752,6 +782,15 @@ export const geo = {
 };
 
 export const auth = {
+  /**
+   * Change your own password.
+   *
+   * The current one is required, so an unlocked screen is not enough to
+   * take the account over.
+   */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.post<{ changed: boolean }>('/auth/password', { currentPassword, newPassword }),
+
   login: (phone: string, password: string) =>
     api.post<LoginResult>('/auth/login', { phone, password }),
 
@@ -791,6 +830,10 @@ export const auth = {
       /** Set when this account DIRECTS a facility without holding a licence. */
       facilityDirectorOf?: string | null;
       facilityDirectorRole?: string | null;
+      /** False for reception staff, who see only the waiting room. */
+      canAdministerFacility?: boolean;
+      /** Set when somebody else chose this password. */
+      mustChangePassword?: boolean;
       facilityAdminOfName: string | null;
     }>('/auth/me'),
 
