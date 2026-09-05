@@ -436,16 +436,16 @@ describe('facility registration', () => {
     expect(registerStub.facility).not.toHaveBeenCalled();
   });
 
-  it('tells a registrant they need a health worker account first', async () => {
+  it('tells a registrant they do NOT need to be a clinician', async () => {
     const user = userEvent.setup();
     render(<FacilityRegister />);
     await user.selectOptions(screen.getByLabelText(/ownership/i), 'PRIVATE_FOR_PROFIT');
 
-    // This used to be the faintest text on the page, under a field most
-    // people skip — so somebody could reach the end still looking for a
-    // password field that was never going to exist.
+    // The form used to say the opposite — that you must register as a health
+    // worker first — which was true of the old design and became exactly
+    // backwards once an owner could register directly.
     expect(
-      screen.getByText(/need a health worker account before you can run a facility/i),
+      screen.getByText(/do not need to be a doctor to register a facility/i),
     ).toBeInTheDocument();
   });
 

@@ -426,24 +426,6 @@ export default function FacilityRegisterPage() {
               Ownership and legality
             </legend>
 
-            {/* Promoted from a micro-hint under a field nobody reads. A
-                facility is not an account: you sign in as YOURSELF, a
-                registered practitioner. Somebody who reaches the end of
-                this form still looking for a password has been failed by
-                the form, not by their own reading. */}
-            <p className="mb-3 rounded-md border border-caution/40 bg-caution-soft px-3 py-2.5 text-sm text-caution">
-              <span className="font-semibold">
-                You need a health worker account before you can run a facility.
-              </span>{' '}
-              A facility has no password of its own — you sign in as yourself,
-              with the licence number and password from your health worker
-              registration.{' '}
-              <Link href={PORTALS.worker.registerPath} className="underline">
-                Register as a health worker
-              </Link>{' '}
-              first if you have not already, then come back and give that
-              licence number below.
-            </p>
             <p className="mb-3 text-micro text-ink-soft">
               The Ministry checks these against the Business Registry, KRA and
               its own register before approving. Give the numbers as they
@@ -672,76 +654,6 @@ export default function FacilityRegisterPage() {
                 </>
               )}
             </fieldset>
-            <p className="mb-3 text-micro text-ink-soft">
-              The Ministry checks these against the Business Registry, KRA and
-              its own register before approving. Give the numbers as they
-              appear on the certificates — no documents are uploaded.
-            </p>
-
-            <div className="grid gap-x-4 sm:grid-cols-2">
-              <Field id="businessRegNo" label="Business registration number">
-                <input
-                  id="businessRegNo"
-                  required
-                  value={businessRegNo}
-                  onChange={(e) => setBusinessRegNo(e.target.value.toUpperCase())}
-                  placeholder="PVT-ABC1234"
-                  autoComplete="off"
-                  className={`${inputClass} font-mono`}
-                />
-              </Field>
-
-              <Field id="kraPin" label="KRA PIN">
-                <input
-                  id="kraPin"
-                  value={kraPin}
-                  onChange={(e) => setKraPin(e.target.value.toUpperCase())}
-                  placeholder="P051234567X"
-                  autoComplete="off"
-                  className={`${inputClass} font-mono`}
-                />
-              </Field>
-
-              <Field
-                id="practiceLicenceNo"
-                label="Practice licence number (optional)"
-              >
-                <input
-                  id="practiceLicenceNo"
-                  value={practiceLicenceNo}
-                  onChange={(e) => setPracticeLicenceNo(e.target.value.toUpperCase())}
-                  autoComplete="off"
-                  className={`${inputClass} font-mono`}
-                />
-              </Field>
-
-              <Field id="ownerName" label="Owner's full name">
-                <input
-                  id="ownerName"
-                  value={ownerName}
-                  onChange={(e) => setOwnerName(e.target.value)}
-                  autoComplete="off"
-                  className={inputClass}
-                />
-              </Field>
-            </div>
-
-            <Field id="ownerNationalId" label="Owner's National ID">
-              <input
-                id="ownerNationalId"
-                inputMode="numeric"
-                value={ownerNationalId}
-                onChange={(e) => setOwnerNationalId(e.target.value.replace(/\D/g, ''))}
-                maxLength={12}
-                autoComplete="off"
-                className={`${inputClass} font-mono`}
-              />
-            </Field>
-            <p className="-mt-2 mb-4 text-micro text-ink-faint">
-              Stored encrypted and read only by the registrar checking it. It
-              is never shown back on this portal.
-            </p>
-
 
           </fieldset>
         )}
