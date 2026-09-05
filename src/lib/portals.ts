@@ -111,25 +111,71 @@ export const PORTAL_LIST: Portal[] = [
 ];
 
 /**
+ * Whether an account may enter the portal whose door it used.
+ *
+ * The rule is that a sign-in either lands where it was aimed or is
+ * refused. Silently redirecting somebody to a different portal is the
+ * worst of both: they typed the facility address, gave correct
+ * credentials, and ended up on their own medical record with no
+ * explanation — which reads as the system being broken rather than as
+ * "you do not work at a facility".
+ *
+ * Returns null when they belong, or the reason they do not.
+ */
+export function refusalFor(
+  me: {
+    practitionerId: string | null;
+    ministryUserId: string | null;
+    personId: string | null;
+    facilityAdminOf?: string | null;
+    facilityDirectorOf?: string | null;
+  },
+  portal: Portal,
+): string | null {
+  switch (portal.id) {
+    case 'facility':
+      // Either kind of link will do: a practitioner administering one, or
+      // a person directing or working at one.
+      return me.facilityAdminOf || me.facilityDirectorOf
+        ? null
+        : 'This account is not linked to a facility. Ask whoever runs the ' +
+            'facility to add you, then sign in again.';
+
+    case 'worker':
+      return me.practitionerId
+        ? null
+        : 'This is the health worker portal, and this account holds no ' +
+            'practising licence. Sign in to your own record instead.';
+
+    case 'ministry':
+      return me.ministryUserId
+        ? null
+        : 'Ministry accounts are issued by the Ministry of Health. This ' +
+            'account is not one.';
+
+    case 'citizen':
+      // Everybody with a person record has their own record to read, and a
+      // clinician signing in here is reading their own — which is correct.
+      return me.personId || me.practitionerId
+        ? null
+        : 'This account has no personal health record.';
+
+    default:
+      return null;
+  }
+}
+
+/**
  * Which portal a signed-in account belongs to.
  *
- * Order matters. A practitioner account and a citizen account are separate
- * rows for the same human being, so "has a practitioner id" must be asked
- * before "has a person id" or every clinician lands on the citizen screen.
+ * Used once entry has been allowed, to pick the landing screen. Order
+ * matters: a practitioner account and a citizen account are separate rows
+ * for the same human being, so "has a practitioner id" must be asked
+ * before "has a person id".
  *
- * A facility administrator is the one case the account alone cannot
- * settle. They ARE a practitioner — that is what keeps the licence checks
- * and audit trail applying to them — and at a small clinic the same person
- * both runs the place and sees patients, so neither portal is wrong. The
- * door they signed in through decides: someone who went to the facility
- * sign-in wants the facility portal, and everyone else keeps the clinical
- * one they had before.
- *
- * A DIRECTOR is the case that needs no deciding. A hospital owner is
- * usually a businessperson, holding no licence at all, so there is no
- * clinical portal they could belong to — the facility portal is the only
- * one that means anything to them. Checked before the citizen fallback,
- * which is where they used to land.
+ * The door still decides between the worker and facility portals for
+ * somebody who is both, because at a small clinic the same person runs the
+ * place and sees patients, and neither answer is wrong.
  */
 export function portalFor(
   me: {
@@ -142,14 +188,12 @@ export function portalFor(
   /** The portal whose sign-in form they used, when there was one. */
   cameFrom?: Portal,
 ): Portal {
-  if (me.practitionerId) {
-    if (cameFrom?.id === 'facility' && me.facilityAdminOf) return PORTALS.facility;
-    return PORTALS.worker;
-  }
+  // The door wins, now that entry has been checked against it: somebody who
+  // signed in at the facility door and belongs there goes there.
+  if (cameFrom && !refusalFor(me, cameFrom)) return cameFrom;
+
+  if (me.practitionerId) return PORTALS.worker;
   if (me.ministryUserId) return PORTALS.ministry;
-  // Before the citizen fallback: a director with no licence is not a
-  // patient looking at their own record, and sending them there was how a
-  // non-clinical owner found the facility portal unreachable.
   if (me.facilityDirectorOf) return PORTALS.facility;
   return PORTALS.citizen;
 }

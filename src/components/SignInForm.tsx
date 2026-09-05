@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { auth, setSession, ApiError } from '@/lib/api';
-import { portalFor, type Portal } from '@/lib/portals';
+import { portalFor, refusalFor, type Portal } from '@/lib/portals';
 import { PortalShell, Field, inputClass, SubmitButton, ErrorNote } from './PortalShell';
 import { MfaEnrolment } from './MfaEnrolment';
 
@@ -56,16 +56,31 @@ export function SignInForm({
   const [busy, setBusy] = useState(false);
 
   /**
-   * Where to send them once signed in.
+   * Where to send them once signed in — or why they cannot come in.
    *
-   * Deliberately asks the SERVER which role this account holds rather than
-   * trusting the portal they signed in through. A clinician who bookmarks
-   * the citizen sign-in is still a clinician, and sending them to the
-   * citizen screen would meet them with "this endpoint is for citizen
-   * accounts" — a permission wall through no fault of their own.
+   * A sign-in lands where it was aimed or is refused. Sending somebody to
+   * a different portal than the door they used is the worst of both: they
+   * typed the facility address, gave correct credentials, and arrived on
+   * their own medical record with no explanation, which reads as the
+   * system being broken rather than as "you do not work at a facility".
+   *
+   * The SERVER decides which roles the account holds; this only compares
+   * that answer against the door.
    */
   async function land() {
     const me = await auth.me();
+
+    const refusal = refusalFor(me, portal);
+    if (refusal) {
+      // Signed in, but not into this portal. The session is dropped so
+      // they are not left half-authenticated on a screen they cannot use.
+      await auth.logout().catch(() => {});
+      setError(refusal);
+      setStage('CREDENTIALS');
+      setCode('');
+      return;
+    }
+
     router.push(portalFor(me, portal).landingPath);
   }
 

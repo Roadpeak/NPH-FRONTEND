@@ -11,7 +11,7 @@
  * is where that class of bug is caught.
  */
 import { describe, it, expect } from 'vitest';
-import { PORTALS, PORTAL_LIST, portalFor, type Portal } from '@/lib/portals';
+import { PORTALS, PORTAL_LIST, portalFor, refusalFor, type Portal } from '@/lib/portals';
 
 const me = (over: Partial<Parameters<typeof portalFor>[0]> = {}) => ({
   practitionerId: null,
@@ -200,5 +200,61 @@ describe('routing a director who is not a clinician', () => {
         facilityDirectorOf: 'f1',
       }).id,
     ).toBe('ministry');
+  });
+});
+
+/**
+ * A SIGN-IN LANDS WHERE IT WAS AIMED, OR IS REFUSED.
+ *
+ * Silently redirecting somebody to a different portal is the worst of both
+ * outcomes: they typed the facility address, gave correct credentials, and
+ * arrived on their own medical record with no explanation — which reads as
+ * the system being broken rather than as "you do not work at a facility".
+ */
+describe('entering the portal you actually asked for', () => {
+  const nobody = { practitionerId: null, ministryUserId: null, personId: 'p1' };
+
+  it('refuses a plain citizen at the facility door', () => {
+    const refusal = refusalFor(nobody, PORTALS.facility);
+    expect(refusal).toMatch(/not linked to a facility/i);
+  });
+
+  it('lets a director in at the facility door', () => {
+    expect(refusalFor({ ...nobody, facilityDirectorOf: 'f1' }, PORTALS.facility)).toBeNull();
+  });
+
+  it('lets a facility administrator in at the facility door', () => {
+    expect(
+      refusalFor(
+        { practitionerId: 'pr1', ministryUserId: null, personId: null, facilityAdminOf: 'f1' },
+        PORTALS.facility,
+      ),
+    ).toBeNull();
+  });
+
+  it('refuses a citizen at the health worker door', () => {
+    expect(refusalFor(nobody, PORTALS.worker)).toMatch(/no practising licence/i);
+  });
+
+  it('refuses anybody without a Ministry account at the Ministry door', () => {
+    expect(refusalFor(nobody, PORTALS.ministry)).toMatch(/issued by the Ministry/i);
+  });
+
+  it('lets a citizen read their own record', () => {
+    expect(refusalFor(nobody, PORTALS.citizen)).toBeNull();
+  });
+
+  it('THE DOOR WINS once entry is allowed', () => {
+    // A clinician who also directs a facility signed in at the facility
+    // door: they meant the facility, and they belong there.
+    const both = {
+      practitionerId: 'pr1',
+      ministryUserId: null,
+      personId: null,
+      facilityAdminOf: 'f1',
+    };
+    expect(portalFor(both, PORTALS.facility).id).toBe('facility');
+    // The same account at the worker door goes to the worker portal.
+    expect(portalFor(both, PORTALS.worker).id).toBe('worker');
   });
 });
