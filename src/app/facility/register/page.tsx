@@ -558,7 +558,7 @@ export default function FacilityRegisterPage() {
                     <Field
                       id="directorPhone"
                       label="Your phone number"
-                      hint="You sign in with this, and it receives your security codes."
+                      hint="This is your login. You sign in with this number and the password below, and your security codes come here."
                     >
                       <input
                         id="directorPhone"
@@ -719,7 +719,11 @@ export default function FacilityRegisterPage() {
           <Field
             id="phone"
             label="Facility phone number"
-            hint="The facility's own line, not your personal number."
+            /* Says what it is NOT. Two phone numbers on one form invites the
+               reading that this one is the facility's login — it is not, and
+               the facility has no login at all. A registrar rings this about
+               approval and a referral reaches the clinic on it. */
+            hint="The clinic's own line — for the Ministry and for referrals. This is not a login."
           >
             <input
               id="phone"
