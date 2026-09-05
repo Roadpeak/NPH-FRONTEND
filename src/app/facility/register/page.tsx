@@ -533,13 +533,42 @@ export default function FacilityRegisterPage() {
               </button>
 
               {directorFound && (
-                <p className="mb-2 rounded-md border border-good/40 bg-good-soft px-3 py-2 text-sm">
-                  Linking{' '}
-                  <span className="font-semibold">
-                    {directorFound.givenName} {directorFound.familyName}
-                  </span>
-                  . They sign in with the password they already use.
-                </p>
+                /*
+                  Says the link is HELD, not that it has happened.
+
+                  "Linking X" beside a button that silently enabled left no
+                  way to tell whether anything had been recorded — and there
+                  is nothing to record yet: the link is written when the
+                  facility is registered, because a facility that does not
+                  exist cannot have a director.
+
+                  It also has to be undoable. Matching the wrong person
+                  otherwise means reloading the page and starting again.
+                */
+                <div className="mb-2 rounded-md border border-good/40 bg-good-soft px-3 py-2.5 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>
+                      <span className="font-semibold">
+                        {directorFound.givenName} {directorFound.familyName}
+                      </span>{' '}
+                      will run this facility.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDirectorFound(null);
+                        setDirectorSearch('');
+                      }}
+                      className="text-micro underline"
+                    >
+                      Not them — search again
+                    </button>
+                  </div>
+                  <p className="mt-1 text-micro text-ink-soft">
+                    They sign in with the password they already use. This is
+                    saved when you register the facility below.
+                  </p>
+                </div>
               )}
 
               {needsAccount && (
@@ -751,6 +780,13 @@ export default function FacilityRegisterPage() {
         <SubmitButton busy={busy} disabled={Boolean(chosen && !chosen.isPublic && !directorFound)}>
           {busy ? 'Registering…' : 'Register facility'}
         </SubmitButton>
+
+        {chosen && !chosen.isPublic && !directorFound && (
+          /* A disabled button that says nothing reads as a broken form. */
+          <p className="mt-2 text-center text-micro text-ink-faint">
+            Find the account of whoever will run this facility to continue.
+          </p>
+        )}
 
         <ErrorNote message={error} />
 

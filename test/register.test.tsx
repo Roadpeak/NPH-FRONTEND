@@ -267,7 +267,7 @@ describe('facility registration', () => {
         '31445566',
       );
       await user.click(screen.getByRole('button', { name: /find their account/i }));
-      await waitFor(() => expect(screen.getByText(/Linking/i)).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText(/will run this facility/i)).toBeInTheDocument());
     }
   }
 
@@ -300,7 +300,7 @@ describe('facility registration', () => {
           '31445566',
         );
         await user.click(screen.getByRole('button', { name: /find their account/i }));
-        await waitFor(() => expect(screen.getByText(/Linking/i)).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByText(/will run this facility/i)).toBeInTheDocument());
       }
     }
   }
@@ -434,6 +434,28 @@ describe('facility registration', () => {
     // checks to be weaker, so there is no password field and no name field.
     expect(screen.queryByLabelText(/choose a password/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/your full name/i)).not.toBeInTheDocument();
+  });
+
+  it('lets a wrong match be undone without reloading', async () => {
+    const user = userEvent.setup();
+    render(<FacilityRegister />);
+    await user.selectOptions(screen.getByLabelText(/ownership/i), 'PRIVATE_FOR_PROFIT');
+    await user.type(
+      screen.getByLabelText(/national id, nhp number or licence/i),
+      '31445566',
+    );
+    await user.click(screen.getByRole('button', { name: /find their account/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/will run this facility/i)).toBeInTheDocument(),
+    );
+
+    // Matching the wrong person otherwise means reloading the page and
+    // filling the whole form again.
+    await user.click(screen.getByRole('button', { name: /not them/i }));
+    // The confirmation goes, and the prompt to search returns — the hint
+    // under the disabled submit says "run this facility" too, so match the
+    // confirmation's own wording rather than the shared phrase.
+    expect(screen.queryByRole('button', { name: /not them/i })).not.toBeInTheDocument();
   });
 
   it('sends somebody with no account to the right portal, not a dead end', async () => {
