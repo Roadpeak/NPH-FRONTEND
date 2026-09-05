@@ -69,6 +69,11 @@ export default function FacilityRegisterPage() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
 
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState<string | null>(null);
+  /** How precise the browser said the fix was, in metres. */
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+
   const [counties, setCounties] = useState<CountyOption[]>([]);
   const [subcounties, setSubcounties] = useState<SubcountyOption[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +100,72 @@ export default function FacilityRegisterPage() {
       cancelled = true;
     };
   }, [countyId]);
+
+  /*
+   * Fill the coordinates from the device.
+   *
+   * Typing a decimal coordinate by hand is how a facility ends up in the
+   * wrong county, or in the sea — and this form already says the point of
+   * these numbers is that a patient sent here can reach the place.
+   *
+   * Deliberately a button rather than something that fires on load. A
+   * silent location prompt on a registration form is both alarming and
+   * useless: whoever fills this in is not always standing at the facility,
+   * so the value has to be offered, not assumed.
+   */
+  function useMyLocation() {
+    setLocateError(null);
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocateError('This browser cannot detect location. Enter the coordinates by hand.');
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng, accuracy: acc } = pos.coords;
+
+        /*
+         * Same bounding box the API enforces, checked here so the refusal
+         * arrives with the reason attached rather than as a rejected
+         * submission ten fields later. It also catches the common case of
+         * registering a Kenyan facility from somewhere else entirely.
+         */
+        const inKenya = lat >= -5.0 && lat <= 5.5 && lng >= 33.5 && lng <= 42.0;
+        if (!inKenya) {
+          setLocating(false);
+          setLocateError(
+            'That location is outside Kenya, so it is not where the facility is. ' +
+              'Enter the coordinates by hand.',
+          );
+          return;
+        }
+
+        // Six decimals is roughly 0.1 m — well past what any phone GPS
+        // knows, and enough that the number does not imply false precision.
+        setLatitude(lat.toFixed(6));
+        setLongitude(lng.toFixed(6));
+        setAccuracy(Math.round(acc));
+        setLocating(false);
+      },
+      (err) => {
+        setLocating(false);
+        // Named causes, because "could not get location" leaves somebody
+        // tapping a button that will never work.
+        setLocateError(
+          err.code === err.PERMISSION_DENIED
+            ? 'Location permission was refused. Allow it in your browser, or enter the coordinates by hand.'
+            : err.code === err.POSITION_UNAVAILABLE
+              ? 'No location fix available — indoors or without GPS this often fails. Enter the coordinates by hand.'
+              : 'Locating took too long. Try again, or enter the coordinates by hand.',
+        );
+      },
+      // A facility is a fixed point, so a cached fix from the last few
+      // minutes is as good as a new one and much faster.
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 },
+    );
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -480,6 +551,33 @@ export default function FacilityRegisterPage() {
             />
           </Field>
         </div>
+
+        <div className="mb-2 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={useMyLocation}
+            disabled={locating}
+            className="rounded-md border border-gov px-3 py-1.5 text-sm font-semibold text-gov disabled:opacity-60"
+          >
+            {locating ? 'Locating…' : 'Use my current location'}
+          </button>
+          {accuracy !== null && !locateError && (
+            /* State the accuracy rather than implying the fix is exact. A
+               reading good to 800 m is fine for a dispensary and useless
+               for telling two clinics on one street apart, and only the
+               person registering it can judge which they have. */
+            <span className="text-micro text-ink-soft">
+              Filled from this device · accurate to about {accuracy} m. Correct it
+              if the facility is elsewhere.
+            </span>
+          )}
+        </div>
+
+        {locateError && (
+          <p className="mb-3 rounded-md border border-caution/40 bg-caution-soft px-3 py-2 text-micro text-caution">
+            {locateError}
+          </p>
+        )}
 
         <div className="grid gap-x-4 sm:grid-cols-2">
           <Field id="latitude" label="Latitude">

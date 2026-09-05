@@ -415,6 +415,112 @@ describe('facility registration', () => {
       screen.getByText(/need a health worker account before you can run a facility/i),
     ).toBeInTheDocument();
   });
+
+  /**
+   * AUTO-DETECTING THE FACILITY'S LOCATION.
+   *
+   * Typing a decimal coordinate by hand is how a facility ends up in the
+   * wrong county, or in the sea. The button fills both fields from the
+   * device — but it is offered, never automatic, because whoever registers
+   * a facility is not always standing in it.
+   */
+  describe('use my current location', () => {
+    const withGeolocation = (impl: Partial<Geolocation>) => {
+      Object.defineProperty(navigator, 'geolocation', {
+        value: impl,
+        configurable: true,
+      });
+    };
+
+    afterEach(() => {
+      Object.defineProperty(navigator, 'geolocation', {
+        value: undefined,
+        configurable: true,
+      });
+    });
+
+    it('fills both coordinates from the device', async () => {
+      withGeolocation({
+        getCurrentPosition: (ok) =>
+          ok({
+            coords: { latitude: -1.2795, longitude: 36.8305, accuracy: 12 },
+          } as GeolocationPosition),
+      });
+      const user = userEvent.setup();
+      render(<FacilityRegister />);
+
+      await user.click(screen.getByRole('button', { name: /use my current location/i }));
+
+      await waitFor(() =>
+        expect(screen.getByLabelText(/latitude/i)).toHaveValue(-1.2795),
+      );
+      expect(screen.getByLabelText(/longitude/i)).toHaveValue(36.8305);
+    });
+
+    it('states the accuracy rather than implying the fix is exact', async () => {
+      withGeolocation({
+        getCurrentPosition: (ok) =>
+          ok({
+            coords: { latitude: -1.2795, longitude: 36.8305, accuracy: 850 },
+          } as GeolocationPosition),
+      });
+      const user = userEvent.setup();
+      render(<FacilityRegister />);
+
+      await user.click(screen.getByRole('button', { name: /use my current location/i }));
+
+      // 850 m is fine for a rural dispensary and useless for telling two
+      // clinics on one street apart. Only the registrant can judge which.
+      await waitFor(() => expect(screen.getByText(/about 850 m/i)).toBeInTheDocument());
+    });
+
+    it('REFUSES A LOCATION OUTSIDE KENYA rather than filling it in', async () => {
+      withGeolocation({
+        getCurrentPosition: (ok) =>
+          ok({
+            coords: { latitude: 51.5072, longitude: -0.1276, accuracy: 20 },
+          } as GeolocationPosition),
+      });
+      const user = userEvent.setup();
+      render(<FacilityRegister />);
+
+      await user.click(screen.getByRole('button', { name: /use my current location/i }));
+
+      // Registering a Kenyan facility from another country is the common
+      // case, and silently writing London into the form would place a
+      // facility somewhere no patient can be routed to.
+      await waitFor(() => expect(screen.getByText(/outside Kenya/i)).toBeInTheDocument());
+      expect(screen.getByLabelText(/latitude/i)).toHaveValue(null);
+    });
+
+    it('names the reason when permission is refused', async () => {
+      withGeolocation({
+        getCurrentPosition: (_ok, fail) =>
+          fail?.({ code: 1, PERMISSION_DENIED: 1 } as GeolocationPositionError),
+      });
+      const user = userEvent.setup();
+      render(<FacilityRegister />);
+
+      await user.click(screen.getByRole('button', { name: /use my current location/i }));
+
+      // "Could not get location" leaves somebody tapping a button that will
+      // never work.
+      await waitFor(() =>
+        expect(screen.getByText(/permission was refused/i)).toBeInTheDocument(),
+      );
+    });
+
+    it('says so when the browser cannot do it at all', async () => {
+      const user = userEvent.setup();
+      render(<FacilityRegister />);
+
+      await user.click(screen.getByRole('button', { name: /use my current location/i }));
+
+      await waitFor(() =>
+        expect(screen.getByText(/cannot detect location/i)).toBeInTheDocument(),
+      );
+    });
+  });
 });
 
 describe('what a clinician signs in with', () => {
