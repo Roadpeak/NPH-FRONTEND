@@ -71,13 +71,6 @@ export default function FacilityRegisterPage() {
    * the common case is an owner who has never used the system; a clinician
    * who already has an account is the exception, not the rule.
    */
-  const [directorMode, setDirectorMode] = useState<'new' | 'existing'>('new');
-  const [directorName, setDirectorName] = useState('');
-  const [directorNationalId, setDirectorNationalId] = useState('');
-  const [directorPhone, setDirectorPhone] = useState('');
-  const [directorPassword, setDirectorPassword] = useState('');
-  const [directorSex, setDirectorSex] = useState('');
-  const [directorDateOfBirth, setDirectorDateOfBirth] = useState('');
   const [directorSearch, setDirectorSearch] = useState('');
   const [directorFound, setDirectorFound] = useState<{
     personId: string;
@@ -86,17 +79,25 @@ export default function FacilityRegisterPage() {
   } | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  /*
+   * Set when the search finds nobody.
+   *
+   * The answer is not "try again" — it is that this person has no identity
+   * in the health system yet, and getting one happens on the portal that
+   * checks it, not on a facility form. Which portal depends on whether
+   * they are a clinician, and only they know that.
+   */
+  const [needsAccount, setNeedsAccount] = useState(false);
 
   async function findDirector() {
     setSearchError(null);
     setDirectorFound(null);
+    setNeedsAccount(false);
     setSearching(true);
     try {
       const r = await directors.search(directorSearch.trim());
       if (!r.match) {
-        setSearchError(
-          'No account matches that. Check the number, or register as a new director above.',
-        );
+        setNeedsAccount(true);
         return;
       }
       setDirectorFound(r.match);
@@ -240,17 +241,9 @@ export default function FacilityRegisterPage() {
               practiceLicenceNo: practiceLicenceNo || undefined,
               ownerName: ownerName || undefined,
               ownerNationalId: ownerNationalId || undefined,
-              // Exactly one of these three; the API refuses more.
-              ...(directorMode === 'existing' && directorFound
-                ? { directorPersonId: directorFound.personId }
-                : {
-                    directorNationalId: directorNationalId || undefined,
-                    directorName: directorName || undefined,
-                    directorPhone: directorPhone || undefined,
-                    directorPassword: directorPassword || undefined,
-                    directorSex: directorSex || undefined,
-                    directorDateOfBirth: directorDateOfBirth || undefined,
-                  }),
+              // Found, never created: registering an identity is not
+              // something a facility form should be able to do.
+              ...(directorFound ? { directorPersonId: directorFound.personId } : {}),
             }
           : {}),
       });
@@ -315,9 +308,9 @@ export default function FacilityRegisterPage() {
             <span className="font-semibold">
               You do not need to be a doctor to register a facility.
             </span>{' '}
-            The owner or director signs in, and sets their password below. If
-            you are also a health worker you can link that account instead, so
-            you keep one login for both.
+            Whoever runs it signs in as themselves, with the account they
+            already have — as a citizen or as a health worker. You will search
+            for that account below; the facility itself has no login.
           </p>
         </>
       }
@@ -506,152 +499,90 @@ export default function FacilityRegisterPage() {
             <fieldset className="mb-4">
               <legend className="eyebrow mb-2">Who runs this facility</legend>
 
-              <div className="mb-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDirectorMode('new')}
-                  className={`rounded-md border px-3 py-1.5 text-sm font-semibold ${
-                    directorMode === 'new'
-                      ? 'border-gov bg-gov text-surface'
-                      : 'border-rule text-ink-soft'
-                  }`}
-                >
-                  I am the owner or director
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDirectorMode('existing')}
-                  className={`rounded-md border px-3 py-1.5 text-sm font-semibold ${
-                    directorMode === 'existing'
-                      ? 'border-gov bg-gov text-surface'
-                      : 'border-rule text-ink-soft'
-                  }`}
-                >
-                  Link my health worker account
-                </button>
-              </div>
+              <p className="mb-3 max-w-prose text-micro text-ink-soft">
+                {/* Found, never created. Registering an identity happens on
+                    the portal that checks it — a facility form doing it too
+                    would be a second place for those checks to be weaker. */}
+                Whoever runs this facility signs in as themselves, so they need
+                an account first. Find it by National ID, NHP number or licence
+                number.
+              </p>
 
-              {directorMode === 'new' ? (
-                <>
-                  <div className="grid gap-x-4 sm:grid-cols-2">
-                    <Field id="directorName" label="Your full name">
-                      <input
-                        id="directorName"
-                        required
-                        value={directorName}
-                        onChange={(e) => setDirectorName(e.target.value)}
-                        className={inputClass}
-                      />
-                    </Field>
-                    <Field id="directorNationalId" label="Your National ID">
-                      <input
-                        id="directorNationalId"
-                        required
-                        value={directorNationalId}
-                        onChange={(e) => setDirectorNationalId(e.target.value)}
-                        className={`${inputClass} font-mono`}
-                      />
-                    </Field>
-                  </div>
+              <Field
+                id="directorSearch"
+                label="Their National ID, NHP number or licence number"
+              >
+                <input
+                  id="directorSearch"
+                  value={directorSearch}
+                  onChange={(e) => {
+                    setDirectorSearch(e.target.value);
+                    setNeedsAccount(false);
+                  }}
+                  placeholder="12345678 · NHP-XXXX-XXXX · KMPDC/2026/H001"
+                  className={`${inputClass} font-mono`}
+                />
+              </Field>
+              <button
+                type="button"
+                onClick={findDirector}
+                disabled={searching || directorSearch.trim().length < 6}
+                className="mb-2 rounded-md border border-gov px-3 py-1.5 text-sm font-semibold text-gov disabled:opacity-60"
+              >
+                {searching ? 'Searching…' : 'Find their account'}
+              </button>
 
-                  <div className="grid gap-x-4 sm:grid-cols-2">
-                    <Field
-                      id="directorPhone"
-                      label="Your phone number"
-                      hint="This is your login. You sign in with this number and the password below, and your security codes come here."
+              {directorFound && (
+                <p className="mb-2 rounded-md border border-good/40 bg-good-soft px-3 py-2 text-sm">
+                  Linking{' '}
+                  <span className="font-semibold">
+                    {directorFound.givenName} {directorFound.familyName}
+                  </span>
+                  . They sign in with the password they already use.
+                </p>
+              )}
+
+              {needsAccount && (
+                /*
+                  Not a dead end.
+
+                  "No account matches" leaves somebody stuck on a form they
+                  cannot finish. The useful answer is where to get one — and
+                  which portal depends on whether they are a clinician, which
+                  only they know.
+                */
+                <div className="mb-2 rounded-md border border-caution/40 bg-caution-soft px-3 py-2.5 text-sm text-caution">
+                  <p className="mb-2 font-semibold">
+                    Nobody with that number has an account yet.
+                  </p>
+                  <p className="mb-2">
+                    They need one before they can run a facility. Which to
+                    create depends on whether they treat patients:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={PORTALS.worker.registerPath}
+                      className="rounded-md border border-gov px-3 py-1.5 text-sm font-semibold text-gov"
                     >
-                      <input
-                        id="directorPhone"
-                        type="tel"
-                        required
-                        value={directorPhone}
-                        onChange={(e) => setDirectorPhone(e.target.value)}
-                        placeholder="07XX XXX XXX"
-                        className={inputClass}
-                      />
-                    </Field>
-                    <Field id="directorDateOfBirth" label="Your date of birth">
-                      <input
-                        id="directorDateOfBirth"
-                        type="date"
-                        required
-                        value={directorDateOfBirth}
-                        onChange={(e) => setDirectorDateOfBirth(e.target.value)}
-                        className={inputClass}
-                      />
-                    </Field>
-                  </div>
-
-                  <Field id="directorSex" label="Sex at birth">
-                    <select
-                      id="directorSex"
-                      required
-                      value={directorSex}
-                      onChange={(e) => setDirectorSex(e.target.value)}
-                      className={inputClass}
+                      Register as a health worker
+                    </Link>
+                    <Link
+                      href={PORTALS.citizen.registerPath}
+                      className="rounded-md border border-gov px-3 py-1.5 text-sm font-semibold text-gov"
                     >
-                      <option value="">Select…</option>
-                      <option value="FEMALE">Female</option>
-                      <option value="MALE">Male</option>
-                      <option value="INTERSEX">Intersex</option>
-                    </select>
-                  </Field>
+                      Register as a citizen
+                    </Link>
+                  </div>
+                  <p className="mt-2 text-micro">
+                    Come back to this form afterwards and search again.
+                  </p>
+                </div>
+              )}
 
-                  <Field
-                    id="directorPassword"
-                    label="Choose a password"
-                    hint="At least 12 characters. This is how you sign in to run the facility."
-                  >
-                    <input
-                      id="directorPassword"
-                      type="password"
-                      required
-                      minLength={12}
-                      value={directorPassword}
-                      onChange={(e) => setDirectorPassword(e.target.value)}
-                      className={inputClass}
-                    />
-                  </Field>
-                </>
-              ) : (
-                <>
-                  <Field
-                    id="directorSearch"
-                    label="Your National ID or licence number"
-                    hint="We find the account you already have, so you keep one login."
-                  >
-                    <input
-                      id="directorSearch"
-                      value={directorSearch}
-                      onChange={(e) => setDirectorSearch(e.target.value)}
-                      placeholder="KMPDC/2026/H001"
-                      className={`${inputClass} font-mono`}
-                    />
-                  </Field>
-                  <button
-                    type="button"
-                    onClick={findDirector}
-                    disabled={searching || directorSearch.trim().length < 6}
-                    className="mb-2 rounded-md border border-gov px-3 py-1.5 text-sm font-semibold text-gov disabled:opacity-60"
-                  >
-                    {searching ? 'Searching…' : 'Find my account'}
-                  </button>
-
-                  {directorFound && (
-                    <p className="mb-2 rounded-md border border-good/40 bg-good-soft px-3 py-2 text-sm">
-                      Linking{' '}
-                      <span className="font-semibold">
-                        {directorFound.givenName} {directorFound.familyName}
-                      </span>
-                      . You will sign in with the password you already use.
-                    </p>
-                  )}
-                  {searchError && (
-                    <p className="mb-2 rounded-md border border-caution/40 bg-caution-soft px-3 py-2 text-micro text-caution">
-                      {searchError}
-                    </p>
-                  )}
-                </>
+              {searchError && (
+                <p className="mb-2 rounded-md border border-caution/40 bg-caution-soft px-3 py-2 text-micro text-caution">
+                  {searchError}
+                </p>
               )}
             </fieldset>
 
@@ -809,7 +740,15 @@ export default function FacilityRegisterPage() {
           here has to be able to reach it.
         </p>
 
-        <SubmitButton busy={busy}>
+        {/*
+          A private facility must name whoever runs it.
+
+          Without a director, approval creates a facility nobody can
+          administer — silently, with no route to fix it from any screen.
+          The submit is held rather than the field marked required, because
+          the thing that must be present is a FOUND account, not typed text.
+        */}
+        <SubmitButton busy={busy} disabled={Boolean(chosen && !chosen.isPublic && !directorFound)}>
           {busy ? 'Registering…' : 'Register facility'}
         </SubmitButton>
 

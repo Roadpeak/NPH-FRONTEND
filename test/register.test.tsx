@@ -34,9 +34,16 @@ const geoStub = {
   subcounties: vi.fn(async () => [{ id: 's1', name: 'Kisumu Central', kind: 'HEALTH_ADMIN' }]),
 };
 
+/** The director search, which the facility form now depends on. */
+const directorsStub = {
+  search: vi.fn(async () => ({
+    match: { personId: 'p-owner-1', givenName: 'Grace', familyName: 'Owner' },
+  })),
+};
+
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
-  return { ...actual, register: registerStub, geo: geoStub };
+  return { ...actual, register: registerStub, geo: geoStub, directors: directorsStub };
 });
 
 const { default: CitizenRegister } = await import('@/app/citizen/register/page');
@@ -253,14 +260,14 @@ describe('facility registration', () => {
         screen.getByLabelText(/business registration number/i),
         'PVT-ABC1234',
       );
-      // The director, who need not be a clinician. Without them, approval
+      // The director is FOUND, never created here. Without one, approval
       // creates a facility nobody can administer.
-      await user.type(screen.getByLabelText(/your full name/i), 'Grace Owner');
-      await user.type(screen.getByLabelText(/your national id/i), '31445566');
-      await user.type(screen.getByLabelText(/your phone number/i), '0720555111');
-      await user.type(screen.getByLabelText(/your date of birth/i), '1975-04-02');
-      await user.selectOptions(screen.getByLabelText(/sex at birth/i), 'FEMALE');
-      await user.type(screen.getByLabelText(/choose a password/i), 'director-pass-12');
+      await user.type(
+        screen.getByLabelText(/national id, nhp number or licence/i),
+        '31445566',
+      );
+      await user.click(screen.getByRole('button', { name: /find their account/i }));
+      await waitFor(() => expect(screen.getByText(/Linking/i)).toBeInTheDocument());
     }
   }
 
@@ -287,14 +294,14 @@ describe('facility registration', () => {
     await maybe(/facility phone number/i, '0733111222');
     if (ownership !== 'PUBLIC_MOH' && ownership !== 'PUBLIC_OTHER') {
       await maybe(/business registration number/i, 'PVT-ABC1234');
-      await maybe(/your full name/i, 'Grace Owner');
-      await maybe(/your national id/i, '31445566');
-      await maybe(/your phone number/i, '0720555111');
-      await maybe(/your date of birth/i, '1975-04-02');
-      if (skip.source !== /sex at birth/i.source) {
-        await user.selectOptions(screen.getByLabelText(/sex at birth/i), 'FEMALE');
+      if (skip.source !== /national id, nhp number or licence/i.source) {
+        await user.type(
+          screen.getByLabelText(/national id, nhp number or licence/i),
+          '31445566',
+        );
+        await user.click(screen.getByRole('button', { name: /find their account/i }));
+        await waitFor(() => expect(screen.getByText(/Linking/i)).toBeInTheDocument());
       }
-      await maybe(/choose a password/i, 'director-pass-12');
     }
   }
 
@@ -392,7 +399,11 @@ describe('facility registration', () => {
   it('will not submit a private facility without a director', async () => {
     const user = userEvent.setup();
     render(<FacilityRegister />);
-    await fillFacilityWithout(user, 'PRIVATE_FOR_PROFIT', /choose a password/i);
+    await fillFacilityWithout(
+      user,
+      'PRIVATE_FOR_PROFIT',
+      /national id, nhp number or licence/i,
+    );
     await user.click(screen.getByRole('button', { name: /register/i }));
 
     // Without a director the facility registers with nobody pending, and
@@ -406,23 +417,48 @@ describe('facility registration', () => {
     render(<FacilityRegister />);
     await user.selectOptions(screen.getByLabelText(/ownership/i), 'PRIVATE_FOR_PROFIT');
 
-    // A hospital owner is usually a businessperson. Requiring a KMPDC
-    // number here excluded the people who own most private hospitals in
-    // Kenya, and there is no licence field on the default path at all.
-    expect(screen.queryByLabelText(/your licence number/i)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/choose a password/i)).toBeInTheDocument();
+    // A hospital owner is usually a businessperson. The search takes a
+    // National ID or an NHP number as readily as a licence.
+    expect(
+      screen.getByLabelText(/national id, nhp number or licence/i),
+    ).toBeInTheDocument();
   });
 
-  it('offers the owner a way to link an existing health worker account', async () => {
+  it('CREATES NO ACCOUNT — the owner is found, never registered here', async () => {
     const user = userEvent.setup();
     render(<FacilityRegister />);
     await user.selectOptions(screen.getByLabelText(/ownership/i), 'PRIVATE_FOR_PROFIT');
-    await user.click(screen.getByRole('button', { name: /link my health worker account/i }));
 
-    // A clinician who owns a clinic should keep one login, not hold two
-    // half-accounts that drift apart.
-    expect(screen.getByLabelText(/national id or licence number/i)).toBeInTheDocument();
+    // Registering an identity happens on the portal that checks it. A
+    // second registration path here would be a second place for those
+    // checks to be weaker, so there is no password field and no name field.
     expect(screen.queryByLabelText(/choose a password/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/your full name/i)).not.toBeInTheDocument();
+  });
+
+  it('sends somebody with no account to the right portal, not a dead end', async () => {
+    directorsStub.search.mockResolvedValueOnce({ match: null } as never);
+    const user = userEvent.setup();
+    render(<FacilityRegister />);
+    await user.selectOptions(screen.getByLabelText(/ownership/i), 'PRIVATE_FOR_PROFIT');
+    await user.type(
+      screen.getByLabelText(/national id, nhp number or licence/i),
+      '99999999',
+    );
+    await user.click(screen.getByRole('button', { name: /find their account/i }));
+
+    // "No account matches" leaves somebody stuck on a form they cannot
+    // finish. Which portal they need depends on whether they treat
+    // patients, which only they know — so offer both.
+    await waitFor(() =>
+      expect(screen.getByText(/Nobody with that number has an account/i)).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole('link', { name: /register as a health worker/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /register as a citizen/i }),
+    ).toBeInTheDocument();
   });
 
   it('will not submit any facility without a contact number', async () => {

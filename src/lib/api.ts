@@ -324,17 +324,11 @@ export const register = {
     ownerNationalId?: string;
     ownerName?: string;
     /**
-     * The director, one of three ways — a new person who sets their own
-     * password, an account already found by the search, or a licence for a
-     * clinician-owner. A hospital owner is usually a businessperson, so a
-     * licence cannot be the only route.
+     * The director, found rather than created — an account already located
+     * by the search. A hospital owner is usually a businessperson, so a
+     * licence cannot be the only route in, but they must already hold an
+     * identity: a facility form is not where one gets created.
      */
-    directorNationalId?: string;
-    directorName?: string;
-    directorPhone?: string;
-    directorPassword?: string;
-    directorSex?: string;
-    directorDateOfBirth?: string;
     directorPersonId?: string;
     /** Whoever registers a private facility becomes its administrator. */
     adminLicenceNumber?: string;
