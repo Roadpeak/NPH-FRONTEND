@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { facility, hasSession, restoreSession, ApiError, type FacilityProfile } from '@/lib/api';
+import {
+  facility,
+  hasSession,
+  restoreSession,
+  ApiError,
+  type FacilityProfile,
+  type DirectorRow,
+} from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { FacilityNav } from '@/components/FacilityNav';
 import { Icon } from '@/components/icons';
@@ -57,6 +64,53 @@ export default function FacilityProfilePage() {
   const [profile, setProfile] = useState<FacilityProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /*
+   * Who runs this facility.
+   *
+   * A facility with one director stops working the day that person leaves.
+   * Naming a second is what makes it survivable — and why the facility
+   * itself needs no password, which could not be revoked for one person
+   * and would make every action attributable to a building.
+   */
+  const [directors, setDirectors] = useState<DirectorRow[]>([]);
+  const [identifier, setIdentifier] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [dirError, setDirError] = useState<string | null>(null);
+
+  async function loadDirectors() {
+    try {
+      const d = await facility.directors();
+      setDirectors(d.directors);
+    } catch {
+      setDirectors([]);
+    }
+  }
+
+  async function appoint(event: React.FormEvent) {
+    event.preventDefault();
+    setDirError(null);
+    setBusy(true);
+    try {
+      await facility.addDirector(identifier.trim());
+      setIdentifier('');
+      await loadDirectors();
+    } catch (err) {
+      setDirError(err instanceof ApiError ? err.message : 'Could not appoint');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: string) {
+    setDirError(null);
+    try {
+      await facility.removeDirector(id);
+      await loadDirectors();
+    } catch (err) {
+      setDirError(err instanceof ApiError ? err.message : 'Could not remove');
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -67,6 +121,7 @@ export default function FacilityProfilePage() {
         }
         const p = await facility.me();
         if (!cancelled) setProfile(p);
+        if (!cancelled) await loadDirectors();
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && ['NO_SESSION', 'MFA_REQUIRED'].includes(err.code)) {
@@ -179,6 +234,78 @@ export default function FacilityProfilePage() {
                 </dl>
               </section>
             )}
+            <section className="mt-6">
+              <h2 className="eyebrow mb-1">Who runs this facility</h2>
+              <p className="mb-3 max-w-prose text-micro text-ink-soft">
+                {/* States the reason, because "add another director" reads
+                    like paperwork until you know what it prevents. */}
+                A facility with one director stops working the day that person
+                leaves. Name a second, and the clinic keeps running — with
+                every action still recorded against a person, which a shared
+                facility password could never do.
+              </p>
+
+              <ul className="mb-3 space-y-1.5">
+                {directors.map((d) => (
+                  <li
+                    key={d.id}
+                    className="flex items-center gap-3 rounded border border-rule bg-surface px-3 py-2"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                      {d.displayName}
+                      {d.isYou && (
+                        <span className="ml-2 font-normal text-micro text-ink-faint">you</span>
+                      )}
+                    </span>
+                    <span className="chip chip-good">{d.role}</span>
+                    {!d.isYou && (
+                      <button
+                        type="button"
+                        onClick={() => remove(d.id)}
+                        className="text-micro text-ink-faint underline hover:text-critical"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </li>
+                ))}
+                {directors.length === 0 && (
+                  <li className="text-sm text-ink-faint">No directors listed.</li>
+                )}
+              </ul>
+
+              <form onSubmit={appoint} className="flex flex-wrap items-end gap-2">
+                <label className="min-w-0 flex-1">
+                  <span className="eyebrow mb-0.5 block">
+                    National ID or licence number
+                  </span>
+                  <input
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="12345678"
+                    className="w-full rounded border border-rule bg-surface px-2 py-1.5 font-mono text-sm"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={busy || identifier.trim().length < 6}
+                  className="rounded-md bg-gov px-3 py-1.5 text-sm font-semibold text-surface disabled:opacity-60"
+                >
+                  {busy ? 'Appointing…' : 'Appoint director'}
+                </button>
+              </form>
+              <p className="mt-1 text-micro text-ink-faint">
+                {/* No password is created here, and that is the point. */}
+                They must already have an account — a director signs in as
+                themselves, so nobody is issued a password by this screen.
+              </p>
+
+              {dirError && (
+                <p className="mt-2 rounded-md border border-critical/30 bg-critical-soft px-3 py-2 text-micro text-critical">
+                  {dirError}
+                </p>
+              )}
+            </section>
           </>
         )}
       </main>

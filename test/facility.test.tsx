@@ -34,6 +34,9 @@ type Facility = typeof import('@/lib/api')['facility'];
 
 const facilityStub: { [K in keyof Facility]: ReturnType<typeof vi.fn> } = {
   me: vi.fn(),
+  directors: vi.fn(async () => ({ facilityName: '', directors: [] })),
+  addDirector: vi.fn(),
+  removeDirector: vi.fn(),
   staff: vi.fn(),
   addStaff: vi.fn(),
   removeStaff: vi.fn(),
@@ -302,10 +305,19 @@ describe('the facility record', () => {
   it("never shows the owner's National ID", async () => {
     // It is encrypted at rest and read by registrars. A reception terminal
     // reading it back on screen would undo that.
+    //
+    // Asserts the VALUE is absent, not the phrase: the page legitimately
+    // says "National ID or licence number" on the field for appointing a
+    // director, and matching that wording made the test fail on a screen
+    // that leaks nothing.
+    facilityStub.me.mockResolvedValue({
+      ...PROFILE,
+      ownerNationalId: '31445566',
+    });
     const { container } = render(<ProfilePage />);
     await screen.findByText('PVT-ABC1234');
 
-    expect(container.textContent).not.toMatch(/National ID/i);
+    expect(container.textContent).not.toMatch(/31445566/);
   });
 
   it('asks a public facility for no ownership evidence', async () => {

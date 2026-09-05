@@ -401,8 +401,37 @@ export interface QueueEntry {
   seenBy: string | null;
 }
 
+export interface DirectorRow {
+  id: string;
+  personId: string;
+  displayName: string;
+  role: string;
+  status: string;
+  startedAt: string;
+  appointedByKind: string;
+  /** So the screen can explain why you cannot remove yourself. */
+  isYou: boolean;
+}
+
 export const facility = {
   me: () => api.get<FacilityProfile>('/facility/me'),
+
+  /**
+   * The people who RUN the facility, as opposed to the clinicians in it.
+   *
+   * A facility with one director stops working the day they leave. A second
+   * named director fixes that without a shared password — which could not
+   * be revoked for one person, and would make every action attributable to
+   * a building rather than a human.
+   */
+  directors: () =>
+    api.get<{ facilityName: string; directors: DirectorRow[] }>('/facility/directors'),
+
+  addDirector: (identifier: string, role?: string) =>
+    api.post<DirectorRow>('/facility/directors', { identifier, role }),
+
+  removeDirector: (directorId: string) =>
+    api.delete<{ ended: boolean }>(`/facility/directors/${directorId}`),
 
   staff: (includeEnded = false) =>
     api.get<{ facilityName: string; isPublic: boolean; staff: StaffRow[] }>(
