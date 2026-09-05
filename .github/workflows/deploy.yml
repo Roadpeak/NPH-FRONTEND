@@ -38,9 +38,13 @@ jobs:
         with:
           context: .
           push: true
-          # NEXT_PUBLIC_* is inlined at build time; must come from secrets here.
+          # NEXT_PUBLIC_API_URL is the browser-visible backend URL — public by
+          # construction (it ships in every JS bundle a visitor downloads),
+          # so hardcoded here rather than kept as a secret. A missing /api/v1
+          # suffix silently 404s every request; keeping it literal removes
+          # one class of secret-editing mistakes.
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_API_URL=https://api.nationalhealthportal.com/api/v1
           tags: |
             ${{ steps.img.outputs.name }}:latest
             ${{ steps.img.outputs.name }}:${{ github.sha }}
@@ -83,8 +87,12 @@ jobs:
 
             # Pull + recreate frontend only. Never touches backend/postgres/nginx
             # config — those are the backend workflow's territory.
+            # --force-recreate: `up -d` alone sometimes keeps the old container
+            # when the image tag string is unchanged even though the digest
+            # moved; force-recreate is what actually guarantees the new bundle
+            # ships.
             sudo docker compose -f docker-compose.prod.yml pull frontend
-            sudo docker compose -f docker-compose.prod.yml up -d --no-deps frontend
+            sudo docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps frontend
 
             # nginx caches upstream DNS resolution — nudge it so the new
             # frontend container is picked up cleanly.
