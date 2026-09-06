@@ -201,12 +201,19 @@ export default function ReceptionPage() {
         >
           <div className="sm:flex sm:gap-4">
             <div className="sm:flex-1">
-              <Field id="nhpId" label="NHP number">
+              {/* Either identifier. A card gets left at home; an ID number
+                  is in somebody's head, and a desk that only takes the card
+                  turns a forgotten card into "come back later". */}
+              <Field
+                id="nhpId"
+                label="NHP number or National ID"
+                hint="Whichever they have — the card, or the number they remember."
+              >
                 <input
                   id="nhpId"
                   value={nhpId}
                   onChange={(e) => setNhpId(e.target.value.toUpperCase())}
-                  placeholder="NHP-XXXX-XXXX"
+                  placeholder="NHP-XXXX-XXXX or 12345678"
                   autoComplete="off"
                   required
                   className={`${inputClass} font-mono`}

@@ -156,6 +156,26 @@ describe('the reception desk', () => {
     expect(payer).toEqual({ statedPayer: 'UNKNOWN', payerOrgId: undefined });
   });
 
+  it('takes a National ID as readily as an NHP number', async () => {
+    // A card gets left at home; an ID number is in somebody's head. The
+    // field has to say so, or reception turns the first away.
+    facilityStub.queue.mockResolvedValue(WAITING);
+    facilityStub.registerArrival.mockResolvedValue({
+      arrivalId: 'a9',
+      alreadyWaiting: false,
+      arrivedAt: new Date().toISOString(),
+    });
+
+    render(<ReceptionPage />);
+    const field = await screen.findByLabelText(/national id/i);
+    await userEvent.type(field, '39104882');
+    await userEvent.click(screen.getByRole('button', { name: /add to queue/i }));
+
+    await waitFor(() => expect(facilityStub.registerArrival).toHaveBeenCalled());
+    // Passed through as typed — the server resolves which kind it is.
+    expect(facilityStub.registerArrival.mock.calls[0][0]).toBe('39104882');
+  });
+
   it('asks which insurer only when the kind names one', async () => {
     facilityStub.queue.mockResolvedValue(WAITING);
     render(<ReceptionPage />);
