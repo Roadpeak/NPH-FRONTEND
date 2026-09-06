@@ -16,6 +16,7 @@ import {
 
 type SubcountyBurden = Awaited<ReturnType<typeof ministry.subcounty>>[number];
 import { PORTALS } from '@/lib/portals';
+import { StatCard, BarChart, Funnel, ChartLegend } from '@/components/charts';
 
 /**
  * The Ministry dashboard.
@@ -178,6 +179,18 @@ export default function MinistryPage() {
   }, [router]);
 
   const nameOf = (id: string) => counties.find((c) => c.id === id)?.name ?? 'Unknown';
+
+  /*
+   * Kenya's forty-seven counties, as the denominator.
+   *
+   * `counties.length` counted every row in the table, which is fifty on a
+   * database the test suite has run against — it leaves fixture counties
+   * behind. "5 of 50" is wrong on a Ministry dashboard in a way somebody
+   * would quote, so the denominator is the real administrative divisions:
+   * codes 001 to 047.
+   */
+  const realCounties = counties.filter((c) => /^0(0[1-9]|[1-3]\d|4[0-7])$/.test(c.code));
+  const countyTotal = realCounties.length || counties.length;
   const maxCases = Math.max(1, ...burden.map((b) => b.cases));
   const totalCases = burden.reduce((s, b) => s + b.cases, 0);
   const suppressedCounties = burden.filter((b) => b.cases === 0 && b.suppressedCells > 0);
@@ -279,7 +292,7 @@ export default function MinistryPage() {
               <div className="card px-4 py-3.5">
                 <p className="eyebrow mb-1">Counties reporting</p>
                 <p className="font-mono text-3xl font-semibold tabular-nums">{burden.length}</p>
-                <p className="text-micro text-ink-faint">of {counties.length}</p>
+                <p className="text-micro text-ink-faint">of {countyTotal}</p>
               </div>
               <div className="card px-4 py-3.5">
                 <p className="eyebrow mb-1">Data completeness</p>
@@ -408,6 +421,16 @@ export default function MinistryPage() {
               </div>
             )}
 
+            <ChartLegend
+              items={[
+                { swatch: 'gov', label: 'Confirmed cases' },
+                // Deliberately does not repeat the threshold: the note above
+                // already states it, and saying it twice made the two
+                // indistinguishable to anyone scanning for it.
+                { swatch: 'hatch', label: 'Withheld for disclosure control' },
+              ]}
+            />
+
             {gaps.length > 0 && (
               <>
                 <h2 className="eyebrow mb-2 mt-6">Care gaps · lost to follow-up</h2>
@@ -435,48 +458,96 @@ export default function MinistryPage() {
                 referral issued at one facility to an arrival at another and
                 an outcome returned to the first. Aggregate reporting cannot
                 do it; a longitudinal record can. */}
-            <h2 className="eyebrow mb-2">Referral loop closure by county</h2>
             {closure.length === 0 ? (
               <p className="text-sm text-ink-faint">
                 No referrals issued in this period.
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      <th className="pb-2 text-left font-mono text-label uppercase tracking-wider text-ink-faint">
-                        County
-                      </th>
-                      <th className="pb-2 text-right font-mono text-label uppercase tracking-wider text-ink-faint">
-                        Issued
-                      </th>
-                      <th className="pb-2 text-right font-mono text-label uppercase tracking-wider text-ink-faint">
-                        Arrived
-                      </th>
-                      <th className="pb-2 text-right font-mono text-label uppercase tracking-wider text-ink-faint">
-                        Closed
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {closure.map((r) => (
-                      <tr key={r.countyId} className="border-t border-rule-soft">
-                        <td className="py-2">{nameOf(r.countyId)}</td>
-                        <td className="py-2 text-right tabular">{r.issued}</td>
-                        <td className="py-2 text-right tabular">
-                          {r.arrivalRatePercent}%
-                        </td>
-                        <td className="py-2 text-right font-semibold tabular">
-                          {r.closureRatePercent}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                {(() => {
+                  const issued = closure.reduce((n, r) => n + r.issued, 0);
+                  const arrived = closure.reduce((n, r) => n + r.arrived, 0);
+                  const completed = closure.reduce((n, r) => n + r.completed, 0);
+                  return (
+                    <>
+                      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+                        <StatCard
+                          label="Referrals issued"
+                          value={issued}
+                          caption="This period, nationally"
+                        />
+                        <StatCard
+                          label="Patient arrived"
+                          value={issued ? Math.round((arrived / issued) * 100) : 0}
+                          unit="%"
+                          caption={`${arrived.toLocaleString('en-GB')} of ${issued.toLocaleString('en-GB')}`}
+                          tone={arrived / Math.max(1, issued) < 0.5 ? 'caution' : 'default'}
+                        />
+                        <StatCard
+                          label="Loop closed"
+                          value={issued ? Math.round((completed / issued) * 100) : 0}
+                          unit="%"
+                          caption="Outcome returned to the referrer"
+                          tone={completed / Math.max(1, issued) < 0.5 ? 'critical' : 'good'}
+                        />
+                      </div>
+
+                      <h2 className="eyebrow mb-3">The referral funnel</h2>
+                      {/*
+                        Drawn as a funnel because that is what it is. Three
+                        percentage columns in a table were exactly the
+                        presentation the note below warns against: they hide
+                        WHERE the loss happens, and a patient who never
+                        arrived is a different problem from one who arrived
+                        and was never reported on.
+                      */}
+                      <Funnel
+                        stages={[
+                          {
+                            label: 'Issued',
+                            value: issued,
+                            detail: 'A clinician referred the patient onward',
+                          },
+                          {
+                            label: 'Arrived',
+                            value: arrived,
+                            detail: 'The receiving facility checked them in',
+                          },
+                          {
+                            label: 'Closed',
+                            value: completed,
+                            detail: 'An outcome came back to whoever referred them',
+                          },
+                        ]}
+                      />
+                    </>
+                  );
+                })()}
+
+                <h2 className="eyebrow mb-2 mt-7">Closure rate by county</h2>
+                <BarChart
+                  data={[...closure]
+                    .sort((a, b) => a.closureRatePercent - b.closureRatePercent)
+                    .map((r) => ({
+                      key: r.countyId,
+                      label: nameOf(r.countyId),
+                      value: r.closureRatePercent,
+                      // Worst first, and flagged: this list is read to find
+                      // where to intervene, not to celebrate the top.
+                      emphasis: r.closureRatePercent < 50,
+                    }))}
+                  max={100}
+                  unit="%"
+                />
+                <ChartLegend
+                  items={[
+                    { swatch: 'gov', label: 'Closure rate' },
+                    { swatch: 'caution', label: 'Below 50% — loop rarely closes' },
+                  ]}
+                />
+              </>
             )}
-            <p className="mt-3 max-w-prose text-micro text-ink-faint">
+            <p className="mt-4 max-w-prose text-micro text-ink-faint">
               A funnel, not a single figure: &ldquo;40% closure&rdquo; alone hides
               whether patients never arrived or arrived and were never reported
               on — completely different problems with different fixes.
@@ -486,39 +557,58 @@ export default function MinistryPage() {
 
         {metric === 'WORKFORCE' && (
           <>
-            <h2 className="eyebrow mb-2">Active clinicians by county</h2>
             {workforce.length === 0 ? (
               <p className="text-sm text-ink-faint">No check-ins in this period.</p>
             ) : (
-              <ul className="space-y-1">
-                {workforce.map((w) => (
-                  <li key={w.countyId} className="flex items-center gap-3">
-                    <span className="w-28 shrink-0 truncate text-sm">
-                      {nameOf(w.countyId)}
-                    </span>
-                    <span className="h-4 flex-1 overflow-hidden rounded-sm bg-rule-soft">
-                      <span
-                        className={`block h-full ${rampFor(
-                          w.activeClinicians,
-                          Math.max(1, ...workforce.map((x) => x.activeClinicians)),
-                        )}`}
-                        style={{
-                          width: `${
-                            (w.activeClinicians /
-                              Math.max(1, ...workforce.map((x) => x.activeClinicians))) *
-                            100
-                          }%`,
-                        }}
+              <>
+                {(() => {
+                  const total = workforce.reduce((n, w) => n + w.activeClinicians, 0);
+                  const covered = workforce.filter((w) => w.activeClinicians > 0).length;
+                  // A county with nobody working in it is the finding here,
+                  // and it was previously just a short bar in a list.
+                  const empty = countyTotal - covered;
+                  return (
+                    <div className="mb-6 grid gap-3 sm:grid-cols-3">
+                      <StatCard
+                        label="Clinicians working"
+                        value={total}
+                        caption="Checked in during this period"
                       />
-                    </span>
-                    <span className="w-12 shrink-0 text-right font-mono text-sm tabular">
-                      {w.activeClinicians}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                      <StatCard
+                        label="Counties covered"
+                        value={covered}
+                        caption={`of ${countyTotal}`}
+                      />
+                      <StatCard
+                        label="Counties with nobody"
+                        value={empty}
+                        caption="No clinician checked in at all"
+                        tone={empty > 0 ? 'critical' : 'good'}
+                      />
+                    </div>
+                  );
+                })()}
+
+                <h2 className="eyebrow mb-3">Active clinicians by county</h2>
+                <BarChart
+                  data={[...workforce]
+                    .sort((a, b) => b.activeClinicians - a.activeClinicians)
+                    .map((w) => ({
+                      key: w.countyId,
+                      label: nameOf(w.countyId),
+                      value: w.activeClinicians,
+                      emphasis: w.activeClinicians === 0,
+                    }))}
+                />
+                <ChartLegend
+                  items={[
+                    { swatch: 'gov', label: 'Clinicians checked in' },
+                    { swatch: 'caution', label: 'Nobody working in this county' },
+                  ]}
+                />
+              </>
             )}
-            <p className="mt-3 max-w-prose text-micro text-ink-faint">
+            <p className="mt-4 max-w-prose text-micro text-ink-faint">
               Derived from actual check-ins — who is working, not who is on an
               establishment list.
             </p>
@@ -554,7 +644,7 @@ export default function MinistryPage() {
                     <p className="font-mono text-3xl font-semibold tabular-nums">
                       {new Set(surveillance.map((s) => s.countyId)).size}
                     </p>
-                    <p className="text-micro text-ink-faint">of {counties.length}</p>
+                    <p className="text-micro text-ink-faint">of {countyTotal}</p>
                   </div>
                 </div>
 
