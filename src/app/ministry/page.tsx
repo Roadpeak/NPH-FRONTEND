@@ -23,6 +23,8 @@ import {
   ChartLegend,
   Donut,
   Gauge,
+  GroupedBarChart,
+  SERIES,
 } from '@/components/charts';
 
 /**
@@ -304,17 +306,20 @@ export default function MinistryPage() {
                 label="Confirmed cases"
                 value={totalCases}
                 caption="Malaria · last 30 days"
+                accentTone="c1"
               />
               <StatCard
                 label="First-ever episodes"
                 value={burden.reduce((n, b) => n + b.newCases, 0)}
                 caption="Not a repeat presentation"
+                accentTone="c2"
               />
               <StatCard
                 label="Counties reporting"
                 value={burden.length}
                 caption={`of ${countyTotal}`}
                 tone={burden.length < countyTotal / 2 ? 'caution' : 'default'}
+                accentTone="c4"
               />
               <StatCard
                 label="Data completeness"
@@ -337,7 +342,7 @@ export default function MinistryPage() {
                     {
                       label: 'First-ever episode',
                       value: burden.reduce((n, b) => n + b.newCases, 0),
-                      tone: 'gov',
+                      tone: 'c1',
                     },
                     {
                       label: 'Seen before',
@@ -345,7 +350,7 @@ export default function MinistryPage() {
                         0,
                         totalCases - burden.reduce((n, b) => n + b.newCases, 0),
                       ),
-                      tone: 'faint',
+                      tone: 'c2',
                     },
                   ]}
                 />
@@ -408,7 +413,7 @@ export default function MinistryPage() {
             <ul className="mb-4 space-y-1">
               {burden
                 .filter((b) => b.cases > 0)
-                .map((b) => {
+                .map((b, i) => {
                   const open = openCounty === b.countyId;
                   const rows = drill[b.countyId];
                   return (
@@ -424,9 +429,17 @@ export default function MinistryPage() {
                         </span>
                         <span className="w-28 shrink-0 truncate text-sm">{nameOf(b.countyId)}</span>
                         <span className="h-4 flex-1 overflow-hidden rounded-sm bg-rule-soft">
+                          {/* One colour per county, cycling. The ramp before
+                              this shaded by VALUE, which meant the same
+                              county changed colour as the period changed —
+                              and a darker bar read as a worse one when it
+                              only meant a bigger one. */}
                           <span
-                            className={`block h-full ${rampFor(b.cases, maxCases)}`}
-                            style={{ width: `${(b.cases / maxCases) * 100}%` }}
+                            className="block h-full rounded-sm"
+                            style={{
+                              width: `${(b.cases / maxCases) * 100}%`,
+                              backgroundColor: `rgb(var(--${SERIES[i % SERIES.length]}))`,
+                            }}
                           />
                         </span>
                         <span className="w-12 shrink-0 text-right font-mono text-sm tabular">
@@ -616,27 +629,50 @@ export default function MinistryPage() {
                   );
                 })()}
 
-                <h2 className="eyebrow mb-2 mt-7">Closure rate by county</h2>
-                <BarChart
-                  data={[...closure]
-                    .sort((a, b) => a.closureRatePercent - b.closureRatePercent)
-                    .map((r) => ({
-                      key: r.countyId,
-                      label: nameOf(r.countyId),
-                      value: r.closureRatePercent,
-                      // Worst first, and flagged: this list is read to find
-                      // where to intervene, not to celebrate the top.
-                      emphasis: r.closureRatePercent < 50,
-                    }))}
-                  max={100}
-                  unit="%"
-                />
-                <ChartLegend
-                  items={[
-                    { swatch: 'gov', label: 'Closure rate' },
-                    { swatch: 'caution', label: 'Below 50% — loop rarely closes' },
-                  ]}
-                />
+                <section className="card card-body mt-6">
+                  <h2 className="eyebrow mb-1">Where each county loses referrals</h2>
+                  <p className="mb-4 text-micro text-ink-faint">
+                    Three bars per county, all from the same baseline. A
+                    stacked bar would put two of the three on shifted
+                    offsets, and the comparison a reader wants is between
+                    them.
+                  </p>
+                  <GroupedBarChart
+                    rows={[...closure]
+                      .sort((a, b) => a.closureRatePercent - b.closureRatePercent)
+                      .map((r) => ({
+                        key: r.countyId,
+                        label: nameOf(r.countyId),
+                        values: [r.issued, r.arrived, r.completed],
+                      }))}
+                    series={[
+                      { label: 'Issued', tone: 'c1' },
+                      { label: 'Arrived', tone: 'c2' },
+                      { label: 'Closed', tone: 'c4' },
+                    ]}
+                  />
+                </section>
+
+                <section className="card card-body mt-4">
+                  <h2 className="eyebrow mb-3">Closure rate by county</h2>
+                  <BarChart
+                    data={[...closure]
+                      .sort((a, b) => a.closureRatePercent - b.closureRatePercent)
+                      .map((r) => ({
+                        key: r.countyId,
+                        label: nameOf(r.countyId),
+                        value: r.closureRatePercent,
+                        // Worst first, and flagged: this list is read to find
+                        // where to intervene, not to celebrate the top.
+                        emphasis: r.closureRatePercent < 50,
+                      }))}
+                    max={100}
+                    unit="%"
+                  />
+                  <ChartLegend
+                    items={[{ swatch: 'caution', label: 'Below 50% — loop rarely closes' }]}
+                  />
+                </section>
               </>
             )}
             <p className="mt-4 max-w-prose text-micro text-ink-faint">

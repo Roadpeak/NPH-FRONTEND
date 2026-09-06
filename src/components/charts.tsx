@@ -47,6 +47,7 @@ export function StatCard({
   trend,
   trendGood,
   tone = 'default',
+  accentTone,
 }: {
   label: string;
   value: string | number;
@@ -57,15 +58,27 @@ export function StatCard({
   /** Whether a RISE is good. Deaths rising is not the same as coverage rising. */
   trendGood?: 'up' | 'down';
   tone?: 'default' | 'critical' | 'caution' | 'good';
+  /** A series colour for the accent, when the card carries no judgement. */
+  accentTone?: SeriesTone;
 }) {
-  const toneRing =
+  /*
+   * A coloured rule down the left edge rather than a tinted border.
+   *
+   * Four identical navy-bordered cards in a row were indistinguishable at a
+   * glance, so a reader had to read all four labels to find the one they
+   * came for. The accent gives each card an identity while the surface
+   * stays white — this is a statistics screen, not a set of alert boxes.
+   */
+  const accent =
     tone === 'critical'
-      ? 'border-critical/30'
+      ? 'rgb(var(--red))'
       : tone === 'caution'
-        ? 'border-caution/40'
+        ? 'rgb(var(--amber))'
         : tone === 'good'
-          ? 'border-good/30'
-          : 'border-rule';
+          ? 'rgb(var(--green))'
+          : accentTone
+            ? toneVar(accentTone)
+            : 'rgb(var(--gov))';
 
   const rising = typeof trend === 'number' && trend > 0;
   const flat = typeof trend === 'number' && Math.round(trend) === 0;
@@ -80,7 +93,10 @@ export function StatCard({
         : 'text-critical';
 
   return (
-    <div className={`rounded-lg border bg-surface px-4 py-3.5 ${toneRing}`}>
+    <div
+      className="rounded-lg border border-rule bg-surface px-4 py-3.5"
+      style={{ borderLeftWidth: 3, borderLeftColor: accent }}
+    >
       <p className="eyebrow mb-1.5">{label}</p>
       <p className="flex items-baseline gap-1.5">
         <span className="font-mono text-3xl font-semibold tabular-nums leading-none">
@@ -111,6 +127,48 @@ export interface BarDatum {
   suppressed?: boolean;
   /** Draws this row in the caution palette. */
   emphasis?: boolean;
+  /** A series colour, when bars stand for different things. */
+  tone?: SeriesTone;
+}
+
+/**
+ * A colour for a chart series.
+ *
+ * `c1`..`c6` are categorical: they distinguish one thing from another and
+ * carry no judgement. The semantic four stay available for the cases where
+ * a bar really does mean good, bad or withheld.
+ */
+export type SeriesTone =
+  | 'c1'
+  | 'c2'
+  | 'c3'
+  | 'c4'
+  | 'c5'
+  | 'c6'
+  | 'gov'
+  | 'good'
+  | 'caution'
+  | 'critical'
+  | 'faint';
+
+export const SERIES: SeriesTone[] = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6'];
+
+/** The CSS variable behind a tone, for SVG fills. */
+export function toneVar(t: SeriesTone = 'gov'): string {
+  const map: Record<SeriesTone, string> = {
+    c1: '--c1',
+    c2: '--c2',
+    c3: '--c3',
+    c4: '--c4',
+    c5: '--c5',
+    c6: '--c6',
+    gov: '--gov',
+    good: '--green',
+    caution: '--amber',
+    critical: '--red',
+    faint: '--rule',
+  };
+  return `rgb(var(${map[t]}))`;
 }
 
 /**
@@ -178,10 +236,13 @@ export function BarChart({
                   />
                 ) : (
                   <span
-                    className={`block h-full rounded-sm ${
-                      d.emphasis ? 'bg-caution' : 'bg-gov'
-                    }`}
-                    style={{ width: `${pct}%` }}
+                    className="block h-full rounded-sm"
+                    style={{
+                      width: `${pct}%`,
+                      backgroundColor: d.emphasis
+                        ? 'rgb(var(--amber))'
+                        : toneVar(d.tone ?? 'gov'),
+                    }}
                   />
                 )}
               </span>
@@ -492,7 +553,7 @@ export function AreaChart({
 export interface Slice {
   label: string;
   value: number;
-  tone?: 'gov' | 'caution' | 'critical' | 'good' | 'faint';
+  tone?: SeriesTone;
 }
 
 /**
@@ -522,16 +583,7 @@ export function Donut({
   const stroke = size * 0.16;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
-  const colour = (t?: Slice['tone']) =>
-    t === 'caution'
-      ? 'rgb(var(--amber))'
-      : t === 'critical'
-        ? 'rgb(var(--red))'
-        : t === 'good'
-          ? 'rgb(var(--green))'
-          : t === 'faint'
-            ? 'rgb(var(--rule))'
-            : 'rgb(var(--gov))';
+  const colour = (t?: SeriesTone) => toneVar(t ?? 'gov');
 
   let offset = 0;
   return (
@@ -670,5 +722,212 @@ export function Gauge({
       </div>
       {caption && <p className="mt-1 text-micro text-ink-faint">{caption}</p>}
     </div>
+  );
+}
+
+/* --------------------------------------------------------- grouped bars */
+
+export interface GroupedRow {
+  key: string;
+  label: string;
+  values: number[];
+}
+
+/**
+ * Bars grouped by category — several measures side by side per row.
+ *
+ * The alternative is a stacked bar, and stacks are worse here: only the
+ * bottom segment starts from a common baseline, so every other segment has
+ * to be compared by eye across different offsets. Grouped bars all start at
+ * zero, which is the comparison a reader is actually making.
+ */
+export function GroupedBarChart({
+  rows,
+  series,
+  unit,
+}: {
+  rows: GroupedRow[];
+  series: Array<{ label: string; tone: SeriesTone }>;
+  unit?: string;
+}) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-ink-faint">Nothing to show for this period.</p>;
+  }
+  const ceiling = Math.max(1, ...rows.flatMap((r) => r.values));
+
+  return (
+    <div>
+      <ul className="space-y-3">
+        {rows.map((r) => (
+          <li key={r.key}>
+            <div className="mb-1 flex items-baseline justify-between gap-2">
+              <span className="truncate text-sm">{r.label}</span>
+              <span className="shrink-0 font-mono text-micro text-ink-faint">
+                {r.values.map((v) => fmt(v)).join(' · ')}
+                {unit}
+              </span>
+            </div>
+            <div className="space-y-1">
+              {r.values.map((v, i) => (
+                <div
+                  key={series[i]?.label ?? i}
+                  className="h-2.5 overflow-hidden rounded-sm bg-rule-soft"
+                >
+                  <div
+                    className="h-full rounded-sm"
+                    style={{
+                      width: `${(v / ceiling) * 100}%`,
+                      backgroundColor: toneVar(series[i]?.tone),
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+        {series.map((s) => (
+          <li key={s.label} className="flex items-center gap-1.5 text-micro text-ink-faint">
+            <span
+              className="inline-block h-2.5 w-4 rounded-sm"
+              style={{ backgroundColor: toneVar(s.tone) }}
+            />
+            {s.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------- multi-line chart */
+
+export interface LineSeries {
+  label: string;
+  tone: SeriesTone;
+  points: number[];
+}
+
+/**
+ * Several series over the same periods.
+ *
+ * Straight segments, no smoothing: a curve drawn between two monthly figures
+ * implies values for the weeks between that nobody measured. In a national
+ * health statistic that is a fabrication, not a styling choice.
+ *
+ * Each line ends with a dot and its own label, so a reader never has to
+ * match a colour back to a legend to know which line is which.
+ */
+export function LineChart({
+  periods,
+  series,
+  height = 160,
+  unit,
+}: {
+  periods: string[];
+  series: LineSeries[];
+  height?: number;
+  unit?: string;
+}) {
+  if (periods.length < 2 || series.length === 0) {
+    return (
+      <p className="py-8 text-center text-micro text-ink-faint">
+        Not enough periods to show a trend.
+      </p>
+    );
+  }
+
+  const w = 320;
+  const padL = 4;
+  const padR = 4;
+  const hi = Math.max(1, ...series.flatMap((s) => s.points));
+  const x = (i: number) => padL + (i / (periods.length - 1)) * (w - padL - padR);
+  const y = (v: number) => height - 18 - (v / hi) * (height - 30);
+
+  return (
+    <figure>
+      <svg viewBox={`0 0 ${w} ${height}`} className="w-full" role="img"
+        aria-label={series
+          .map((s) => `${s.label}: ${s.points.join(', ')}`)
+          .join('; ')}
+      >
+        {/* Quarter gridlines, faint. They orient the eye; they are not data. */}
+        {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+          <g key={f}>
+            <line
+              x1={padL}
+              x2={w - padR}
+              y1={y(hi * f)}
+              y2={y(hi * f)}
+              stroke="rgb(var(--rule))"
+              strokeWidth="0.5"
+            />
+            <text
+              x={padL}
+              y={y(hi * f) - 2}
+              className="fill-ink-faint font-mono"
+              style={{ fontSize: 6 }}
+            >
+              {Math.round(hi * f)}
+            </text>
+          </g>
+        ))}
+
+        {series.map((s) => {
+          const d = s.points
+            .map((v, i) => `${i ? 'L' : 'M'}${x(i)},${y(v)}`)
+            .join(' ');
+          return (
+            <g key={s.label}>
+              <path
+                d={d}
+                fill="none"
+                stroke={toneVar(s.tone)}
+                strokeWidth="2"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+              {s.points.map((v, i) => (
+                <circle key={i} cx={x(i)} cy={y(v)} r={1.8} fill={toneVar(s.tone)} />
+              ))}
+            </g>
+          );
+        })}
+
+        {/* Period labels along the foot. */}
+        {periods.map((p, i) => (
+          <text
+            key={p}
+            x={x(i)}
+            y={height - 4}
+            textAnchor={i === 0 ? 'start' : i === periods.length - 1 ? 'end' : 'middle'}
+            className="fill-ink-faint font-mono"
+            style={{ fontSize: 6.5 }}
+          >
+            {p}
+          </text>
+        ))}
+      </svg>
+
+      {/* Latest value per series, named. Reading a line chart should not
+          require matching a hue back to a key. */}
+      <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5">
+        {series.map((s) => (
+          <li key={s.label} className="flex items-baseline gap-1.5 text-micro">
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{ backgroundColor: toneVar(s.tone) }}
+            />
+            <span className="text-ink-soft">{s.label}</span>
+            <span className="font-mono font-semibold tabular-nums">
+              {fmt(s.points[s.points.length - 1])}
+              {unit}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </figure>
   );
 }

@@ -45,6 +45,19 @@ const config: Config = {
          * blue, and white on it is 2.1:1 — unreadable.
          */
         ongov: 'rgb(var(--on-gov) / <alpha-value>)',
+        /**
+         * The categorical chart series — see --c1..--c6 in globals.css.
+         *
+         * Separate from the semantic colours on purpose: these distinguish
+         * categories and mean nothing on their own, so a reader never
+         * learns that the third bar is "the bad one".
+         */
+        c1: 'rgb(var(--c1) / <alpha-value>)',
+        c2: 'rgb(var(--c2) / <alpha-value>)',
+        c3: 'rgb(var(--c3) / <alpha-value>)',
+        c4: 'rgb(var(--c4) / <alpha-value>)',
+        c5: 'rgb(var(--c5) / <alpha-value>)',
+        c6: 'rgb(var(--c6) / <alpha-value>)',
         /** Semantic, from the Kenyan flag. Never decorative. */
         good: {
           DEFAULT: 'rgb(var(--green) / <alpha-value>)',

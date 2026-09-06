@@ -45,6 +45,27 @@
 
     --amber: 138 90 0;
     --amber-soft: 253 242 220;
+
+    /*
+     * The chart series.
+     *
+     * Navy, green, red and amber are SEMANTIC — they mean government,
+     * good, critical, caution — so using them to tell one county from
+     * another taught a reader that a bar was "the bad one" when it was
+     * only the third one. These six exist to distinguish categories and
+     * mean nothing on their own.
+     *
+     * Chosen for two properties: each clears 5:1 on white, and their
+     * luminances step apart, so the series survives greyscale printing and
+     * the commonest forms of colour blindness. A Ministry chart gets
+     * photocopied.
+     */
+    --c1: 15 110 115;
+    --c2: 91 75 138;
+    --c3: 163 86 56;
+    --c4: 92 111 42;
+    --c5: 122 59 92;
+    --c6: 67 96 125;
   }
 
   /* The default "system" setting stamps nothing on the root element, so
@@ -75,6 +96,14 @@
 
       --amber: 229 183 104;
       --amber-soft: 42 33 19;
+
+      /* Lifted for a dark ground, keeping the same hue order. */
+      --c1: 79 190 196;
+      --c2: 165 150 219;
+      --c3: 226 148 112;
+      --c4: 160 186 96;
+      --c5: 208 138 176;
+      --c6: 141 174 212;
     }
   }
 
@@ -103,6 +132,13 @@
 
     --amber: 229 183 104;
     --amber-soft: 42 33 19;
+
+    --c1: 79 190 196;
+    --c2: 165 150 219;
+    --c3: 226 148 112;
+    --c4: 160 186 96;
+    --c5: 208 138 176;
+    --c6: 141 174 212;
   }
 
   html {

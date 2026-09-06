@@ -25,6 +25,8 @@ import {
   Donut,
   Gauge,
   AreaChart,
+  GroupedBarChart,
+  LineChart,
 } from '@/components/charts';
 
 describe('the stat card', () => {
@@ -149,6 +151,55 @@ describe('the area chart', () => {
 
   it('says so rather than drawing a line through one point', () => {
     render(<AreaChart points={[{ label: 'Sep', value: 3 }]} />);
+    expect(screen.getByText(/not enough periods/i)).toBeInTheDocument();
+  });
+});
+
+describe('grouped bars', () => {
+  const ROWS = [
+    { key: 'a', label: 'Kisumu', values: [100, 40, 30] },
+    { key: 'b', label: 'Siaya', values: [50, 45, 44] },
+  ];
+  const SERIES_DEF = [
+    { label: 'Issued', tone: 'c1' as const },
+    { label: 'Arrived', tone: 'c2' as const },
+    { label: 'Closed', tone: 'c4' as const },
+  ];
+
+  it('prints every figure in the group, not just the largest', () => {
+    render(<GroupedBarChart rows={ROWS} series={SERIES_DEF} />);
+    // All three measures per row, so the comparison does not depend on
+    // judging bar lengths against each other.
+    expect(screen.getByText('100 · 40 · 30')).toBeInTheDocument();
+    expect(screen.getByText('50 · 45 · 44')).toBeInTheDocument();
+  });
+
+  it('names each series', () => {
+    render(<GroupedBarChart rows={ROWS} series={SERIES_DEF} />);
+    expect(screen.getByText('Issued')).toBeInTheDocument();
+    expect(screen.getByText('Closed')).toBeInTheDocument();
+  });
+});
+
+describe('the line chart', () => {
+  const PERIODS = ['Jul', 'Aug', 'Sep'];
+  const LINES = [
+    { label: 'Malaria', tone: 'c1' as const, points: [40, 90, 60] },
+    { label: 'Cholera', tone: 'c3' as const, points: [5, 8, 30] },
+  ];
+
+  it('labels each line with its latest value', () => {
+    render(<LineChart periods={PERIODS} series={LINES} />);
+    // A reader should never have to match a hue back to a legend to know
+    // which line is which.
+    expect(screen.getByText('Malaria')).toBeInTheDocument();
+    expect(screen.getByText('60')).toBeInTheDocument();
+    expect(screen.getByText('Cholera')).toBeInTheDocument();
+    expect(screen.getByText('30')).toBeInTheDocument();
+  });
+
+  it('refuses to draw a trend through a single period', () => {
+    render(<LineChart periods={['Sep']} series={LINES} />);
     expect(screen.getByText(/not enough periods/i)).toBeInTheDocument();
   });
 });
