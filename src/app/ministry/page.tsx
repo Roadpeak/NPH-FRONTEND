@@ -197,18 +197,27 @@ export default function MinistryPage() {
 
   return (
     <div className="min-h-screen bg-surface-sunken">
-      <header className="border-b border-rule bg-surface-alt">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div>
-            <h1 className="text-base font-semibold">National Health Portal · Ministry</h1>
-            <p className="font-mono text-micro text-ink-faint">
-              Analyst · National scope
-            </p>
+      {/*
+        An admin console rather than a report page.
+
+        The metrics were pills across the top of a centred column, which
+        reads as a document somebody published. A Ministry analyst is
+        working a console: they switch between views repeatedly, and the
+        navigation should stay put while the content changes under it. The
+        rail also gives the scope and the de-identified badge a permanent
+        home, which matters because what this screen CANNOT do — reach an
+        individual record — is the point of its design.
+      */}
+      <header className="border-b border-rule bg-surface">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex items-baseline gap-3">
+            <h1 className="font-serif text-lg font-medium">Ministry of Health</h1>
+            <span className="font-mono text-micro text-ink-faint">
+              National Health Portal
+            </span>
           </div>
-          {/* The role is stated, because what this screen CANNOT do is the
-              point: aggregates only, no path to an individual record. */}
           <div className="flex items-center gap-3">
-            <Link href="/ministry/admin" className="text-sm font-semibold text-gov underline">
+            <Link href="/ministry/admin" className="btn btn-secondary">
               Administration
             </Link>
             <span className="chip chip-good">DE-IDENTIFIED AGGREGATES</span>
@@ -216,45 +225,65 @@ export default function MinistryPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        {error && (
-          <p className="mb-4 rounded-md border border-critical/30 bg-critical-soft px-3 py-2.5 text-sm text-critical">
-            {error}
-          </p>
-        )}
+      <div className="lg:flex">
+        {/*
+          The rail. Horizontal on a phone, fixed beside the content from
+          `lg` up — a console's navigation should not move when the view
+          changes underneath it.
+        */}
+        <nav className="border-b border-rule bg-surface px-4 py-3 sm:px-6 lg:min-h-[calc(100vh-57px)] lg:w-60 lg:shrink-0 lg:border-b-0 lg:border-r lg:px-3">
+          <p className="eyebrow mb-2 hidden lg:block">Views</p>
+          <div className="flex flex-wrap gap-1.5 lg:flex-col lg:gap-0.5">
+            {(Object.keys(METRIC_LABELS) as Metric[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMetric(m)}
+                className={`inline-flex min-h-11 items-center rounded-md px-3 text-sm lg:w-full lg:justify-start ${
+                  metric === m
+                    ? 'bg-gov-soft font-semibold text-gov'
+                    : 'text-ink-soft hover:bg-surface-alt'
+                }`}
+              >
+                {METRIC_LABELS[m]}
+              </button>
+            ))}
+          </div>
 
-        <nav className="mb-6 flex flex-wrap gap-1.5">
-          {(Object.keys(METRIC_LABELS) as Metric[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMetric(m)}
-              className={`rounded px-3 py-1.5 text-sm ${
-                metric === m
-                  ? 'bg-gov font-semibold text-surface'
-                  : 'border border-rule text-ink-soft hover:bg-surface'
-              }`}
-            >
-              {METRIC_LABELS[m]}
-            </button>
-          ))}
+          {/*
+            Who is looking, and how far they can see. Permanent rather than
+            a line in a header, because geographic scope decides what every
+            number on this screen means.
+          */}
+          <div className="mt-4 hidden border-t border-rule pt-4 lg:block">
+            <p className="eyebrow mb-1">Signed in as</p>
+            <p className="text-sm font-semibold">Analyst</p>
+            <p className="font-mono text-micro text-ink-faint">National scope</p>
+          </div>
         </nav>
+
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+          {error && (
+            <p className="mb-4 rounded-md border border-critical/30 bg-critical-soft px-3 py-2.5 text-sm text-critical">
+              {error}
+            </p>
+          )}
 
         {metric === 'BURDEN' && (
           <>
             <div className="mb-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-rule bg-surface px-4 py-3">
+              <div className="card px-4 py-3.5">
                 <p className="eyebrow mb-1">Confirmed cases</p>
-                <p className="text-2xl font-semibold tabular">{totalCases.toLocaleString()}</p>
+                <p className="font-mono text-3xl font-semibold tabular-nums">{totalCases.toLocaleString()}</p>
                 <p className="text-micro text-ink-faint">Malaria · last 30 days</p>
               </div>
-              <div className="rounded-lg border border-rule bg-surface px-4 py-3">
+              <div className="card px-4 py-3.5">
                 <p className="eyebrow mb-1">Counties reporting</p>
-                <p className="text-2xl font-semibold tabular">{burden.length}</p>
+                <p className="font-mono text-3xl font-semibold tabular-nums">{burden.length}</p>
                 <p className="text-micro text-ink-faint">of {counties.length}</p>
               </div>
-              <div className="rounded-lg border border-rule bg-surface px-4 py-3">
+              <div className="card px-4 py-3.5">
                 <p className="eyebrow mb-1">Data completeness</p>
-                <p className="text-2xl font-semibold tabular">
+                <p className="font-mono text-3xl font-semibold tabular-nums">
                   {prov?.completenessPercent ?? 0}%
                 </p>
                 {/* A rise in cases and a rise in REPORTING are
@@ -506,12 +535,12 @@ export default function MinistryPage() {
             ) : (
               <>
                 <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg border border-rule bg-surface px-4 py-3">
+                  <div className="card px-4 py-3.5">
                     <p className="eyebrow mb-1">Signals</p>
-                    <p className="text-2xl font-semibold tabular">{surveillance.length}</p>
+                    <p className="font-mono text-3xl font-semibold tabular-nums">{surveillance.length}</p>
                     <p className="text-micro text-ink-faint">disease · county clusters</p>
                   </div>
-                  <div className="rounded-lg border border-rule bg-surface px-4 py-3">
+                  <div className="card px-4 py-3.5">
                     <p className="eyebrow mb-1">Spreading</p>
                     <p className="text-2xl font-semibold tabular text-critical">
                       {spreading.length}
@@ -520,9 +549,9 @@ export default function MinistryPage() {
                         from one family walking into one clinic. */}
                     <p className="text-micro text-ink-faint">seen at 2+ facilities</p>
                   </div>
-                  <div className="rounded-lg border border-rule bg-surface px-4 py-3">
+                  <div className="card px-4 py-3.5">
                     <p className="eyebrow mb-1">Counties affected</p>
-                    <p className="text-2xl font-semibold tabular">
+                    <p className="font-mono text-3xl font-semibold tabular-nums">
                       {new Set(surveillance.map((s) => s.countyId)).size}
                     </p>
                     <p className="text-micro text-ink-faint">of {counties.length}</p>
@@ -578,30 +607,29 @@ export default function MinistryPage() {
             </p>
           </>
         )}
-      </main>
-
-      {/* Provenance. A national figure with no denominator, period or
-          completeness rate is one someone will misquote in a press
-          conference. */}
-      <footer className="border-t border-rule bg-surface-alt">
-        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <p className="eyebrow mb-1.5">Data provenance</p>
-          {prov ? (
-            <div className="space-y-0.5 text-micro text-ink-soft">
-              <p>
-                Aggregated from {prov.facilitiesReporting} of{' '}
-                {prov.facilitiesRegistered} registered facilities ·{' '}
-                {new Date(prov.periodFrom).toLocaleDateString('en-GB')} to{' '}
-                {new Date(prov.periodTo).toLocaleDateString('en-GB')}
-              </p>
-              <p>{prov.suppressionNote}</p>
-              <p className="text-ink-faint">{prov.denominatorNote}</p>
-            </div>
-          ) : (
-            <p className="text-micro text-ink-faint">Loading…</p>
-          )}
-        </div>
-      </footer>
+          {/* Provenance. A national figure with no denominator, period or
+              completeness rate is one someone will misquote in a press
+              conference. It sits with the numbers rather than in a page
+              footer, because it is a caveat on THEM. */}
+          <div className="mt-8 rounded-lg border border-rule bg-surface-alt px-4 py-4">
+            <p className="eyebrow mb-1.5">Data provenance</p>
+            {prov ? (
+              <div className="space-y-0.5 text-micro text-ink-soft">
+                <p>
+                  Aggregated from {prov.facilitiesReporting} of{' '}
+                  {prov.facilitiesRegistered} registered facilities ·{' '}
+                  {new Date(prov.periodFrom).toLocaleDateString('en-GB')} to{' '}
+                  {new Date(prov.periodTo).toLocaleDateString('en-GB')}
+                </p>
+                <p>{prov.suppressionNote}</p>
+                <p className="text-ink-faint">{prov.denominatorNote}</p>
+              </div>
+            ) : (
+              <p className="text-micro text-ink-faint">Loading…</p>
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

@@ -183,7 +183,16 @@ export default function CitizenPage() {
             )}
 
             <h2 className="eyebrow mb-2">{ui.rightNow}</h2>
-            <ul className="mb-6 space-y-2">
+            {/*
+              A grid, not a stack.
+
+              These are the four or five facts a citizen most needs to see —
+              allergies, long-term conditions, daily medicines. As full-width
+              bands they filled the screen one at a time and pushed the
+              visit history below the fold; two columns lets somebody take
+              them in together, which is how a safety summary should read.
+            */}
+            <ul className="mb-7 grid gap-2 sm:grid-cols-2">
               {summary?.rightNow.map((item, i) => (
                 <li
                   key={`${item.kind}-${i}`}
@@ -211,7 +220,7 @@ export default function CitizenPage() {
               ))}
 
               {summary && summary.dailyMedicines.length > 0 && (
-                <li className="rounded-lg border border-rule bg-surface px-4 py-3">
+                <li className="card px-4 py-3 sm:col-span-2">
                   <p className="mb-1 text-sm font-semibold">{ui.dailyMedicines}</p>
                   {summary.dailyMedicines.map((m, i) => (
                     <p key={i} className="text-sm text-ink-soft">

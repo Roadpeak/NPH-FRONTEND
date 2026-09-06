@@ -301,14 +301,29 @@ export default function ReceptionPage() {
           )}
         </form>
 
-        <h2 className="mb-3 flex items-center gap-2 font-serif text-lg font-medium">
-          Waiting
+        {/*
+          The waiting count, at the size a receptionist actually reads it.
+
+          This is the number someone at the desk watches all day and answers
+          questions about across a counter. It was a small chip beside a
+          heading, which is where a count goes when nobody depends on it.
+        */}
+        <div className="mb-3 flex items-baseline gap-3 border-b border-rule pb-2">
+          <h2 className="font-serif text-lg font-medium">Waiting</h2>
           {queue && (
-            <span className="rounded-full bg-gov-soft px-2 py-0.5 text-micro font-semibold text-gov">
+            <span className="font-mono text-2xl font-semibold tabular-nums text-gov">
               {queue.length}
             </span>
           )}
-        </h2>
+          {queue && queue.length > 0 && (
+            <span className="text-micro text-ink-faint">
+              longest wait{' '}
+              {waited(
+                queue.reduce((oldest, q) => (q.arrivedAt < oldest ? q.arrivedAt : oldest), queue[0].arrivedAt),
+              )}
+            </span>
+          )}
+        </div>
 
         {queue === null && <p className="text-sm text-ink-soft">Loading the queue…</p>}
 
@@ -322,7 +337,7 @@ export default function ReceptionPage() {
           {queue?.map((q) => (
             <li
               key={q.visitId}
-              className="flex flex-wrap items-center gap-3 rounded-lg border border-rule bg-surface p-3 sm:flex-nowrap sm:p-4"
+              className="card flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap sm:p-4"
             >
               {/* The photograph, large. Confirming identity across a
                   counter is the whole job of this row. */}
