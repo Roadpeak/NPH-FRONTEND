@@ -76,7 +76,18 @@ export default function Landing() {
           <p className="font-mono text-micro text-ink-faint">/facility</p>
         </li>
         <li className="rounded-md border border-rule bg-surface-alt px-4 py-3">
-          <Link href="/ministry/welcome" className="font-semibold text-gov">
+          {/*
+            nofollow: this is the crawl path that put the administrative
+            portal in Google in the first place. The link stays, because
+            Ministry staff need a door they can find and removing it would
+            only push them to bookmarks while leaving the path just as
+            guessable. See src/app/ministry/layout.tsx.
+          */}
+          <Link
+            href="/ministry/welcome"
+            rel="nofollow"
+            className="font-semibold text-gov"
+          >
             Ministry of Health
           </Link>
           <p className="font-mono text-micro text-ink-faint">/ministry</p>
