@@ -45,8 +45,17 @@ const facilityStub: { [K in keyof Facility]: ReturnType<typeof vi.fn> } = {
   removeStaff: vi.fn(),
   queue: vi.fn(),
   registerArrival: vi.fn(),
+  updateArrivalPayer: vi.fn(),
   closeArrival: vi.fn(),
 };
+
+/** The payer register reception picks from. */
+const PAYERS = [
+  { id: 'p-sha', code: 'SHA', name: 'Social Health Authority', kind: 'SHA' as const },
+  { id: 'p-jub', code: 'JUBILEE_HEALTH', name: 'Jubilee Health Insurance Limited', kind: 'PRIVATE_INSURANCE' as const },
+  { id: 'p-emp', code: 'EMPLOYER_SCHEME', name: 'Employer scheme (not separately listed)', kind: 'EMPLOYER' as const },
+];
+const geoStub = { payers: vi.fn(async () => PAYERS) };
 
 /** Hoisted so a test can say what the signed-in account may administer. */
 const authStub = { logout: vi.fn(), me: vi.fn(async () => ({}) as never) };
@@ -56,6 +65,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
   return {
     ...actual,
     facility: facilityStub,
+    geo: { ...actual.geo, ...geoStub },
     auth: { ...actual.auth, ...authStub },
     hasSession: () => true,
     restoreSession: async () => true,
@@ -116,6 +126,98 @@ describe('the reception desk', () => {
     expect(await screen.findByText('Grace Achieng')).toBeInTheDocument();
     expect(screen.getByText(/NHP-1234-5678/)).toBeInTheDocument();
     expect(screen.getByText(/12 min/)).toBeInTheDocument();
+  });
+
+  // ------------------------------------------------- how they are paying
+
+  it('defaults to "Not recorded" and sends no payer when reception says nothing', async () => {
+    facilityStub.queue.mockResolvedValue(WAITING);
+    facilityStub.registerArrival.mockResolvedValue({
+      arrivalId: 'a2',
+      alreadyWaiting: false,
+      arrivedAt: new Date().toISOString(),
+    });
+
+    render(<ReceptionPage />);
+    const select = (await screen.findByLabelText(/how they are paying/i)) as HTMLSelectElement;
+    expect(select.value).toBe('UNKNOWN');
+
+    await userEvent.type(screen.getByLabelText(/NHP number/i), 'NHP-9999-0000');
+    await userEvent.click(screen.getByRole('button', { name: /add to queue/i }));
+
+    await waitFor(() => expect(facilityStub.registerArrival).toHaveBeenCalled());
+    const [, , payer] = facilityStub.registerArrival.mock.calls[0];
+    // UNKNOWN is sent as "say nothing", so the server records not-asked
+    // rather than this screen asserting a payment method.
+    expect(payer).toEqual({ statedPayer: 'UNKNOWN', payerOrgId: undefined });
+  });
+
+  it('asks which insurer only when the kind names one', async () => {
+    facilityStub.queue.mockResolvedValue(WAITING);
+    render(<ReceptionPage />);
+
+    await screen.findByLabelText(/how they are paying/i);
+    expect(screen.queryByLabelText(/which scheme or insurer/i)).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText(/how they are paying/i), 'PRIVATE_INSURANCE');
+    expect(await screen.findByLabelText(/which scheme or insurer/i)).toBeInTheDocument();
+
+    // Cash names no organisation, so the field goes away again.
+    await userEvent.selectOptions(screen.getByLabelText(/how they are paying/i), 'CASH');
+    await waitFor(() =>
+      expect(screen.queryByLabelText(/which scheme or insurer/i)).not.toBeInTheDocument(),
+    );
+  });
+
+  it('offers only the insurers matching the chosen kind', async () => {
+    facilityStub.queue.mockResolvedValue(WAITING);
+    render(<ReceptionPage />);
+
+    await screen.findByLabelText(/how they are paying/i);
+    await userEvent.selectOptions(screen.getByLabelText(/how they are paying/i), 'PRIVATE_INSURANCE');
+
+    const org = await screen.findByLabelText(/which scheme or insurer/i);
+    expect(org).toHaveTextContent('Jubilee Health Insurance Limited');
+    // An employer scheme is not a private insurer; offering it here is how
+    // a mismatched pair reaches the server and gets refused.
+    expect(org).not.toHaveTextContent('Employer scheme');
+  });
+
+  it('does not carry a stale insurer over when the kind changes', async () => {
+    facilityStub.queue.mockResolvedValue(WAITING);
+    facilityStub.registerArrival.mockResolvedValue({
+      arrivalId: 'a3',
+      alreadyWaiting: false,
+      arrivedAt: new Date().toISOString(),
+    });
+
+    render(<ReceptionPage />);
+    await screen.findByLabelText(/how they are paying/i);
+
+    await userEvent.selectOptions(screen.getByLabelText(/how they are paying/i), 'PRIVATE_INSURANCE');
+    await userEvent.selectOptions(await screen.findByLabelText(/which scheme or insurer/i), 'p-jub');
+    // Reception corrects themselves: it was cash after all.
+    await userEvent.selectOptions(screen.getByLabelText(/how they are paying/i), 'CASH');
+
+    await userEvent.type(screen.getByLabelText(/NHP number/i), 'NHP-9999-0001');
+    await userEvent.click(screen.getByRole('button', { name: /add to queue/i }));
+
+    await waitFor(() => expect(facilityStub.registerArrival).toHaveBeenCalled());
+    const [, , payer] = facilityStub.registerArrival.mock.calls[0];
+    // "Cash, paid by Jubilee" would be refused by the server; the screen
+    // must not be able to compose it in the first place.
+    expect(payer).toEqual({ statedPayer: 'CASH', payerOrgId: undefined });
+  });
+
+  it('still checks people in when the payer register fails to load', async () => {
+    facilityStub.queue.mockResolvedValue(WAITING);
+    geoStub.payers.mockRejectedValueOnce(new Error('offline'));
+
+    render(<ReceptionPage />);
+
+    // A reference list that did not load must never block a check-in.
+    expect(await screen.findByLabelText(/NHP number/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /add to queue/i })).toBeInTheDocument();
   });
 
   it('THE RECEPTION BOUNDARY — renders nothing clinical', async () => {

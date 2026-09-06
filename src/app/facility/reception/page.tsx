@@ -4,10 +4,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   facility,
+  geo,
   hasSession,
   restoreSession,
   ApiError,
   type QueueEntry,
+  type PayerKind,
+  type PayerOption,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { FacilityNav } from '@/components/FacilityNav';
@@ -39,12 +42,44 @@ function waited(since: string): string {
   return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
 }
 
+/**
+ * What reception picks from.
+ *
+ * "Not recorded" leads, and is the default: it is the honest state before
+ * anyone has asked. Waiver and programme-funded care are separate from cash
+ * because a visit that is free at the point of care is not a cash payment,
+ * and collapsing them would corrupt the one figure this is here to produce.
+ */
+const PAYER_LABELS: Array<{ value: PayerKind; label: string }> = [
+  { value: 'UNKNOWN', label: 'Not recorded' },
+  { value: 'CASH', label: 'Cash / out of pocket' },
+  { value: 'SHA', label: 'SHA' },
+  { value: 'PRIVATE_INSURANCE', label: 'Private insurance' },
+  { value: 'EMPLOYER', label: 'Employer scheme' },
+  { value: 'NGO_DONOR', label: 'Programme or donor funded' },
+  { value: 'WAIVER', label: 'Fee waived' },
+];
+
+/** The kinds that name a specific organisation. */
+const NEEDS_ORG = new Set<PayerKind>(['PRIVATE_INSURANCE', 'EMPLOYER', 'NGO_DONOR']);
+
 export default function ReceptionPage() {
   const router = useRouter();
   const [queue, setQueue] = useState<QueueEntry[] | null>(null);
   const [facilityName, setFacilityName] = useState<string>('');
   const [nhpId, setNhpId] = useState('');
   const [reason, setReason] = useState('');
+  /*
+   * How the visit will be paid for, as the patient states it.
+   *
+   * Defaults to UNKNOWN — "not asked" — and stays a visible option. Forcing
+   * a choice would mean reception picks whatever sits at the top of the
+   * list on a busy morning, and the national payer mix becomes an artefact
+   * of the dropdown order rather than a measurement.
+   */
+  const [payer, setPayer] = useState<PayerKind>('UNKNOWN');
+  const [payerOrgId, setPayerOrgId] = useState('');
+  const [payerOptions, setPayerOptions] = useState<PayerOption[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -54,6 +89,21 @@ export default function ReceptionPage() {
     setQueue(r.queue);
     setFacilityName(r.facilityName);
   };
+
+  // The payer register, fetched once. A failure here leaves the select with
+  // only the kinds that need no organisation, which is degraded but still
+  // usable — reception must never be blocked from checking someone in
+  // because a reference list did not load.
+  useEffect(() => {
+    let cancelled = false;
+    geo
+      .payers()
+      .then((rows) => !cancelled && setPayerOptions(rows))
+      .catch(() => !cancelled && setPayerOptions([]));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,7 +150,10 @@ export default function ReceptionPage() {
     setError(null);
     setNotice(null);
     try {
-      const r = await facility.registerArrival(nhpId.trim(), reason.trim() || undefined);
+      const r = await facility.registerArrival(nhpId.trim(), reason.trim() || undefined, {
+        statedPayer: payer,
+        payerOrgId: payerOrgId || undefined,
+      });
       setNotice(
         r.alreadyWaiting
           ? 'That person is already in the queue.'
@@ -108,6 +161,8 @@ export default function ReceptionPage() {
       );
       setNhpId('');
       setReason('');
+      setPayer('UNKNOWN');
+      setPayerOrgId('');
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not register the arrival');
@@ -172,6 +227,57 @@ export default function ReceptionPage() {
                 />
               </Field>
             </div>
+          </div>
+
+          {/* How the visit is paid for. One row, not a section: reception is
+              a queue, and a check-in that takes longer is a check-in that
+              gets skipped. */}
+          <div className="mt-4 sm:flex sm:gap-4">
+            <div className="sm:flex-1">
+              <Field id="payer" label="How they are paying (optional)">
+                <select
+                  id="payer"
+                  value={payer}
+                  onChange={(e) => {
+                    const next = e.target.value as PayerKind;
+                    setPayer(next);
+                    // Clear a stale organisation when the kind no longer
+                    // takes one, or the request is refused for a pairing
+                    // reception cannot see on screen.
+                    if (!NEEDS_ORG.has(next)) setPayerOrgId('');
+                  }}
+                  className={inputClass}
+                >
+                  {PAYER_LABELS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            {NEEDS_ORG.has(payer) && (
+              <div className="sm:flex-1">
+                <Field id="payerOrg" label="Which scheme or insurer">
+                  <select
+                    id="payerOrg"
+                    value={payerOrgId}
+                    onChange={(e) => setPayerOrgId(e.target.value)}
+                    required
+                    className={inputClass}
+                  >
+                    <option value="">Choose…</option>
+                    {payerOptions
+                      .filter((o) => o.kind === payer)
+                      .map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.name}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+              </div>
+            )}
           </div>
 
           <button

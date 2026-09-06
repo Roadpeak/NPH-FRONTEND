@@ -476,15 +476,60 @@ export const facility = {
 
   queue: () => api.get<{ facilityName: string; queue: QueueEntry[] }>('/facility/queue'),
 
-  registerArrival: (nhpId: string, statedReason?: string) =>
+  registerArrival: (
+    nhpId: string,
+    statedReason?: string,
+    payer?: { statedPayer: PayerKind; payerOrgId?: string },
+  ) =>
     api.post<{ arrivalId: string; alreadyWaiting: boolean; arrivedAt: string }>(
       '/facility/queue',
-      { nhpId, ...(statedReason ? { statedReason } : {}) },
+      {
+        nhpId,
+        ...(statedReason ? { statedReason } : {}),
+        // Omitted entirely when not asked, so the server records UNKNOWN
+        // rather than this client asserting a payment method nobody stated.
+        ...(payer && payer.statedPayer !== 'UNKNOWN'
+          ? {
+              statedPayer: payer.statedPayer,
+              ...(payer.payerOrgId ? { payerOrgId: payer.payerOrgId } : {}),
+            }
+          : {}),
+      },
+    ),
+
+  updateArrivalPayer: (
+    arrivalId: string,
+    statedPayer: PayerKind,
+    payerOrgId?: string,
+  ) =>
+    api.patch<{ arrivalId: string; statedPayer: PayerKind; payerOrgId: string | null }>(
+      `/facility/queue/${arrivalId}/payer`,
+      { statedPayer, ...(payerOrgId ? { payerOrgId } : {}) },
     ),
 
   closeArrival: (arrivalId: string, status: 'LEFT' | 'COMPLETED') =>
     api.patch<{ id: string; status: string }>(`/facility/queue/${arrivalId}`, { status }),
 };
+
+/**
+ * How a visit is said to be paid for. A claim taken at the desk, never a
+ * verified payment — the label shown to reception must not imply otherwise.
+ */
+export type PayerKind =
+  | 'CASH'
+  | 'SHA'
+  | 'PRIVATE_INSURANCE'
+  | 'EMPLOYER'
+  | 'NGO_DONOR'
+  | 'WAIVER'
+  | 'UNKNOWN';
+
+export interface PayerOption {
+  id: string;
+  code: string;
+  name: string;
+  kind: PayerKind;
+}
 
 export interface AdminOverview {
   role: string | null;
@@ -770,6 +815,8 @@ export const directors = {
 };
 
 export const geo = {
+  payers: () => api.get<PayerOption[]>('/reference/payers'),
+
   counties: () => api.get<CountyOption[]>('/geo/counties'),
   subcounties: (countyId: string) =>
     api.get<SubcountyOption[]>(`/geo/counties/${countyId}/subcounties`),
