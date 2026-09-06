@@ -34,6 +34,17 @@ const config: Config = {
           DEFAULT: 'rgb(var(--gov) / <alpha-value>)',
           soft: 'rgb(var(--gov-soft) / <alpha-value>)',
         },
+        /**
+         * What to write ON solid gov.
+         *
+         * A colour of its own rather than a key under `gov`, because
+         * `gov-on` reads as the `gov` scale with an `on` modifier and
+         * Tailwind does not generate it.
+         *
+         * It has to flip with the theme: in dark mode --gov becomes a LIGHT
+         * blue, and white on it is 2.1:1 — unreadable.
+         */
+        ongov: 'rgb(var(--on-gov) / <alpha-value>)',
         /** Semantic, from the Kenyan flag. Never decorative. */
         good: {
           DEFAULT: 'rgb(var(--green) / <alpha-value>)',

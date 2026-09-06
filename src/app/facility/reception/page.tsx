@@ -283,7 +283,7 @@ export default function ReceptionPage() {
           <button
             type="submit"
             disabled={busy || !nhpId.trim()}
-            className="inline-flex min-h-[44px] items-center rounded-md bg-gov px-5 font-semibold text-white disabled:opacity-60"
+            className="inline-flex min-h-[44px] items-center rounded-md bg-gov px-5 font-semibold text-ongov disabled:opacity-60"
           >
             <Icon name="citizen" size={16} className="mr-2" />
             {busy ? 'Adding…' : 'Add to queue'}

@@ -240,7 +240,7 @@ export default function MinistryPage() {
                 onClick={() => setMetric(m)}
                 className={`inline-flex min-h-11 items-center rounded-md px-3 text-sm lg:w-full lg:justify-start ${
                   metric === m
-                    ? 'bg-gov-soft font-semibold text-gov'
+                    ? 'bg-gov font-semibold text-ongov'
                     : 'text-ink-soft hover:bg-surface-alt'
                 }`}
               >

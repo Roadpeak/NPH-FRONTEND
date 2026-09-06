@@ -25,8 +25,17 @@
     --rule: 221 229 237;
     --rule-soft: 234 240 246;
 
-    --gov: 10 61 98;
+    /* A deep navy. Buttons and the selected item in a navigation are the
+       two places this appears solid, and both need white text on them —
+       13.4:1, comfortably past AA. */
+    --gov: 10 48 84;
+    /* The pale tint, for backgrounds that carry dark text. */
     --gov-soft: 232 240 247;
+    /* What to write ON solid --gov. It has to be a token, not a hardcoded
+       white: in dark mode --gov becomes a LIGHT blue, and white on it is
+       2.1:1 — unreadable. Flipping this with the theme keeps every solid
+       button and selected nav item legible in both. */
+    --on-gov: 255 255 255;
 
     --green: 26 127 75;
     --green-soft: 230 244 236;
@@ -56,6 +65,7 @@
 
       --gov: 125 184 232;
       --gov-soft: 20 41 58;
+      --on-gov: 11 18 25;
 
       --green: 95 206 151;
       --green-soft: 18 41 30;
@@ -83,6 +93,7 @@
 
     --gov: 125 184 232;
     --gov-soft: 20 41 58;
+    --on-gov: 11 18 25;
 
     --green: 95 206 151;
     --green-soft: 18 41 30;
@@ -193,7 +204,7 @@
            disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-gov px-5 text-white hover:bg-gov/90;
+    @apply btn bg-gov px-5 text-ongov hover:bg-gov/90;
   }
   .btn-secondary {
     @apply btn border border-rule bg-surface text-ink-soft hover:bg-surface-alt;

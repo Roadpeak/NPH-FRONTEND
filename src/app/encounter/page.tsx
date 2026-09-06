@@ -550,7 +550,7 @@ function Encounter() {
                       onClick={() => setStep(i)}
                       className={`flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-sm ${
                         state === 'current'
-                          ? 'bg-gov-soft font-semibold text-gov'
+                          ? 'bg-gov font-semibold text-ongov'
                           : 'text-ink-soft hover:bg-surface'
                       }`}
                     >
@@ -559,7 +559,9 @@ function Encounter() {
                           state === 'done'
                             ? 'bg-good-soft text-good'
                             : state === 'current'
-                              ? 'bg-gov text-surface'
+                              ? // The row behind this is now solid gov blue,
+                                // so a gov-blue badge would vanish into it.
+                                'bg-ongov/20 text-ongov'
                               : 'border border-rule text-ink-faint'
                         }`}
                       >
@@ -928,7 +930,7 @@ function Encounter() {
                      server. Without it nothing else can be recorded, so the
                      first step is the one gate in the flow. */
                   disabled={step === 0 && !chiefComplaint.trim()}
-                  className="inline-flex min-h-[44px] items-center rounded-md bg-gov px-5 font-semibold text-white disabled:opacity-50"
+                  className="inline-flex min-h-[44px] items-center rounded-md bg-gov px-5 font-semibold text-ongov disabled:opacity-50"
                 >
                   Next
                 </button>
@@ -937,7 +939,7 @@ function Encounter() {
                   type="button"
                   onClick={completeEncounter}
                   disabled={saving || !disposition || !chiefComplaint.trim() || !session}
-                  className="inline-flex min-h-[44px] items-center rounded-md bg-gov px-5 font-semibold text-white disabled:opacity-50"
+                  className="inline-flex min-h-[44px] items-center rounded-md bg-gov px-5 font-semibold text-ongov disabled:opacity-50"
                 >
                   {saving ? 'Saving…' : 'Complete encounter'}
                 </button>

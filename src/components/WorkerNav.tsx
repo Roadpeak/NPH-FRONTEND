@@ -78,7 +78,9 @@ export function WorkerNav() {
               key={l.href}
               href={l.href}
               className={`inline-flex min-h-[40px] items-center rounded px-3 text-sm ${
-                active ? 'bg-gov-soft font-semibold text-gov' : 'text-ink-soft hover:bg-surface-alt'
+                active
+                  ? 'bg-gov font-semibold text-ongov'
+                  : 'text-ink-soft hover:bg-surface-alt'
               }`}
             >
               <Icon name={l.icon} size={14} className="mr-1.5" />

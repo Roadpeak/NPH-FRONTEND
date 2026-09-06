@@ -130,7 +130,7 @@ export default function PatientSearchPage() {
             <button
               type="submit"
               disabled={busy || identifier.trim().length < 4}
-              className="btn shrink-0 bg-gov px-5 text-white hover:bg-gov/90"
+              className="btn shrink-0 bg-gov px-5 text-ongov hover:bg-gov/90"
             >
               <Icon name="search" size={15} />
               {busy ? 'Searching…' : 'Search'}
@@ -215,7 +215,7 @@ function PatientRow({ person, canOpen }: { person: PersonSummary; canOpen: boole
       {canOpen ? (
         <Link
           href={`/patient/${person.displayNumber}`}
-          className="btn shrink-0 bg-gov text-white hover:bg-gov/90"
+          className="btn shrink-0 bg-gov text-ongov hover:bg-gov/90"
         >
           Open record
         </Link>

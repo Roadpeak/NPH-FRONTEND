@@ -209,7 +209,7 @@ export default function ShiftPage() {
                     <button
                       onClick={() => start(f.facilityId)}
                       disabled={busy !== null}
-                      className="btn shrink-0 bg-gov text-white hover:bg-gov/90"
+                      className="btn shrink-0 bg-gov text-ongov hover:bg-gov/90"
                     >
                       {busy === f.facilityId ? 'Checking in…' : 'Check in here'}
                     </button>

@@ -184,7 +184,7 @@ export default function StaffPage() {
             <button
               type="submit"
               disabled={busy || !licence.trim()}
-              className="inline-flex min-h-[44px] items-center rounded-md bg-gov px-5 font-semibold text-white disabled:opacity-60"
+              className="inline-flex min-h-[44px] items-center rounded-md bg-gov px-5 font-semibold text-ongov disabled:opacity-60"
             >
               <Icon name="clinician" size={16} className="mr-2" />
               {busy ? 'Adding…' : 'Add to this facility'}
