@@ -206,15 +206,22 @@ describe('the figures carry their provenance', () => {
     await renderPage();
     // A rise in cases and a rise in REPORTING are indistinguishable without
     // this, and they call for opposite responses.
-    expect(screen.getByText('100%')).toBeInTheDocument();
-    expect(screen.getByText(/data completeness/i)).toBeInTheDocument();
+    //
+    // The completeness gauge also shows a percentage, so assert the stat
+    // card specifically rather than any 100% on the page.
+    const card = screen.getByText(/data completeness/i).closest('div');
+    expect(card).toHaveTextContent('100');
   });
 
   it('totals only the counties it is actually showing', async () => {
     await renderPage();
     // 34 + 28 + 19 + 12 = 93. The suppressed county contributes 0, because
     // its true count is not in the payload at all — by design.
-    expect(screen.getByText('93')).toBeInTheDocument();
+    //
+    // The donut centre shows the same total, so assert the stat card
+    // specifically rather than any 93 on the page.
+    const card = screen.getByText(/confirmed cases/i).closest('div');
+    expect(card).toHaveTextContent('93');
   });
 });
 

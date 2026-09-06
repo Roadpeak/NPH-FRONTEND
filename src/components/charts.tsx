@@ -383,3 +383,292 @@ export function ChartLegend({
     </ul>
   );
 }
+
+/* ------------------------------------------------------------ area chart */
+
+/**
+ * A filled trend, for a single series over a period.
+ *
+ * The fill is what separates this from TrendLine: it carries magnitude, so a
+ * reader takes in "how much" as well as "which way" without reading the
+ * axis. Still no curve smoothing — a smoothed line invents values between
+ * points nobody measured, which in a national statistic is a fabrication.
+ */
+export function AreaChart({
+  points,
+  height = 120,
+  unit,
+  label,
+}: {
+  points: Array<{ label: string; value: number }>;
+  height?: number;
+  unit?: string;
+  label?: string;
+}) {
+  if (points.length < 2) {
+    return (
+      <p className="py-6 text-center text-micro text-ink-faint">
+        Not enough periods to show a trend.
+      </p>
+    );
+  }
+
+  const w = 300;
+  const pad = 4;
+  const values = points.map((p) => p.value);
+  const hi = Math.max(...values, 1);
+  const x = (i: number) => pad + (i / (points.length - 1)) * (w - pad * 2);
+  const y = (v: number) => height - pad - (v / hi) * (height - pad * 3);
+
+  const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i)},${y(p.value)}`).join(' ');
+  const area = `${line} L${x(points.length - 1)},${height - pad} L${x(0)},${height - pad} Z`;
+  const peak = points.reduce((a, b) => (b.value > a.value ? b : a));
+
+  return (
+    <figure>
+      <svg
+        viewBox={`0 0 ${w} ${height}`}
+        className="w-full"
+        role="img"
+        aria-label={`${label ?? 'Trend'}: ${points
+          .map((p) => `${p.label} ${p.value}`)
+          .join(', ')}`}
+      >
+        <defs>
+          <linearGradient id="nhp-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgb(var(--gov))" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="rgb(var(--gov))" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+
+        {/* Gridlines at quarter intervals. Faint: they orient the eye, they
+            are not data. */}
+        {[0.25, 0.5, 0.75].map((f) => (
+          <line
+            key={f}
+            x1={pad}
+            x2={w - pad}
+            y1={y(hi * f)}
+            y2={y(hi * f)}
+            stroke="rgb(var(--rule))"
+            strokeWidth="0.5"
+          />
+        ))}
+
+        <path d={area} fill="url(#nhp-area)" />
+        <path
+          d={line}
+          fill="none"
+          stroke="rgb(var(--gov))"
+          strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
+          strokeLinejoin="round"
+        />
+        {points.map((p, i) => (
+          <circle
+            key={p.label}
+            cx={x(i)}
+            cy={y(p.value)}
+            r={p.value === peak.value ? 3.5 : 2}
+            fill="rgb(var(--gov))"
+          />
+        ))}
+      </svg>
+
+      <figcaption className="mt-1 flex items-baseline justify-between font-mono text-micro text-ink-faint">
+        <span>{points[0].label}</span>
+        <span className="text-ink-soft">
+          peak {peak.value.toLocaleString('en-GB')}
+          {unit} · {peak.label}
+        </span>
+        <span>{points[points.length - 1].label}</span>
+      </figcaption>
+    </figure>
+  );
+}
+
+/* ------------------------------------------------------------------ donut */
+
+export interface Slice {
+  label: string;
+  value: number;
+  tone?: 'gov' | 'caution' | 'critical' | 'good' | 'faint';
+}
+
+/**
+ * A donut, for a composition that genuinely sums to a whole.
+ *
+ * Restricted deliberately to few slices. A pie with nine wedges is a table
+ * that has been made harder to read, and comparing similar angles is
+ * something people are measurably bad at — so every slice is labelled with
+ * its own figure and share beside the ring rather than inside it.
+ */
+export function Donut({
+  slices,
+  size = 132,
+  centreLabel,
+  centreValue,
+}: {
+  slices: Slice[];
+  size?: number;
+  centreLabel?: string;
+  centreValue?: string | number;
+}) {
+  const total = slices.reduce((n, s) => n + s.value, 0);
+  if (total === 0) {
+    return <p className="text-sm text-ink-faint">Nothing recorded in this period.</p>;
+  }
+
+  const stroke = size * 0.16;
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const colour = (t?: Slice['tone']) =>
+    t === 'caution'
+      ? 'rgb(var(--amber))'
+      : t === 'critical'
+        ? 'rgb(var(--red))'
+        : t === 'good'
+          ? 'rgb(var(--green))'
+          : t === 'faint'
+            ? 'rgb(var(--rule))'
+            : 'rgb(var(--gov))';
+
+  let offset = 0;
+  return (
+    <div className="flex flex-wrap items-center gap-5">
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        role="img"
+        aria-label={slices
+          .map((s) => `${s.label} ${s.value}, ${Math.round((s.value / total) * 100)}%`)
+          .join('; ')}
+        className="shrink-0"
+      >
+        <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+          {slices.map((s) => {
+            const len = (s.value / total) * circumference;
+            const el = (
+              <circle
+                key={s.label}
+                cx={size / 2}
+                cy={size / 2}
+                r={r}
+                fill="none"
+                stroke={colour(s.tone)}
+                strokeWidth={stroke}
+                strokeDasharray={`${len} ${circumference - len}`}
+                strokeDashoffset={-offset}
+              />
+            );
+            offset += len;
+            return el;
+          })}
+        </g>
+        {centreValue !== undefined && (
+          <>
+            <text
+              x="50%"
+              y="47%"
+              textAnchor="middle"
+              className="fill-ink font-mono text-xl font-semibold"
+              style={{ fontSize: size * 0.2 }}
+            >
+              {centreValue}
+            </text>
+            {centreLabel && (
+              <text
+                x="50%"
+                y="63%"
+                textAnchor="middle"
+                className="fill-ink-faint font-mono"
+                style={{ fontSize: size * 0.085 }}
+              >
+                {centreLabel}
+              </text>
+            )}
+          </>
+        )}
+      </svg>
+
+      {/* Figures beside the ring, not inside it. Judging angles is something
+          people are bad at, and this is read to be quoted. */}
+      {/* The label wraps rather than truncating. "First-ever episo…" tells
+          a reader nothing, and these are the words that say what the ring
+          is dividing. */}
+      <ul className="min-w-[10rem] flex-1 space-y-2">
+        {slices.map((s) => (
+          <li key={s.label} className="text-sm">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="flex min-w-0 items-baseline gap-2">
+                <span
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
+                  style={{ backgroundColor: colour(s.tone) }}
+                />
+                <span>{s.label}</span>
+              </span>
+              <span className="shrink-0 font-mono tabular-nums">
+                {s.value.toLocaleString('en-GB')}
+                <span className="ml-1.5 text-micro text-ink-faint">
+                  {Math.round((s.value / total) * 100)}%
+                </span>
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ mini gauge */
+
+/**
+ * A completeness bar, for a percentage with a target.
+ *
+ * The target tick is the point: 78% means nothing without knowing whether
+ * the expectation was 60 or 95.
+ */
+export function Gauge({
+  value,
+  target,
+  label,
+  caption,
+}: {
+  value: number;
+  target?: number;
+  label: string;
+  caption?: string;
+}) {
+  const pct = Math.max(0, Math.min(100, value));
+  const met = target === undefined || pct >= target;
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <span className="eyebrow">{label}</span>
+        <span
+          className={`font-mono text-sm font-semibold tabular-nums ${
+            met ? 'text-ink' : 'text-caution'
+          }`}
+        >
+          {Math.round(pct)}%
+        </span>
+      </div>
+      <div className="relative h-2.5 overflow-hidden rounded-full bg-rule-soft">
+        <div
+          className={`h-full rounded-full ${met ? 'bg-gov' : 'bg-caution'}`}
+          style={{ width: `${pct}%` }}
+        />
+        {target !== undefined && (
+          <span
+            className="absolute top-0 h-full w-px bg-ink/50"
+            style={{ left: `${target}%` }}
+            title={`Target ${target}%`}
+          />
+        )}
+      </div>
+      {caption && <p className="mt-1 text-micro text-ink-faint">{caption}</p>}
+    </div>
+  );
+}

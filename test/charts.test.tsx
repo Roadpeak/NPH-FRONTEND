@@ -18,7 +18,14 @@
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { StatCard, BarChart, Funnel } from '@/components/charts';
+import {
+  StatCard,
+  BarChart,
+  Funnel,
+  Donut,
+  Gauge,
+  AreaChart,
+} from '@/components/charts';
 
 describe('the stat card', () => {
   it('shows the figure, and groups digits so it can be read aloud', () => {
@@ -85,5 +92,63 @@ describe('the referral funnel', () => {
   it('does not divide by zero when nothing was issued', () => {
     render(<Funnel stages={[{ label: 'Issued', value: 0 }]} />);
     expect(screen.getByText(/no referrals issued/i)).toBeInTheDocument();
+  });
+});
+
+describe('the donut', () => {
+  it('labels every slice with its own figure and share', () => {
+    // Comparing angles is something people are measurably bad at, and these
+    // numbers get quoted — so the figure sits beside the ring, not in it.
+    render(
+      <Donut
+        slices={[
+          { label: 'First-ever episode', value: 75 },
+          { label: 'Seen before', value: 25, tone: 'faint' },
+        ]}
+      />,
+    );
+    expect(screen.getByText('First-ever episode')).toBeInTheDocument();
+    expect(screen.getByText('75')).toBeInTheDocument();
+    expect(screen.getByText('75%')).toBeInTheDocument();
+    expect(screen.getByText('25%')).toBeInTheDocument();
+  });
+
+  it('does not divide by zero on an empty period', () => {
+    render(<Donut slices={[{ label: 'Nothing', value: 0 }]} />);
+    expect(screen.getByText(/nothing recorded/i)).toBeInTheDocument();
+  });
+});
+
+describe('the gauge', () => {
+  it('shows the percentage and warns when it is under target', () => {
+    // 78% means nothing without knowing the expectation was 80.
+    const { container } = render(
+      <Gauge label="Kisumu" value={78} target={80} caption="3 of 4 facilities" />,
+    );
+    expect(screen.getByText('78%')).toBeInTheDocument();
+    expect(container.querySelector('.bg-caution')).toBeTruthy();
+  });
+
+  it('does not warn when the target is met', () => {
+    const { container } = render(<Gauge label="Siaya" value={92} target={80} />);
+    expect(container.querySelector('.bg-caution')).toBeNull();
+  });
+});
+
+describe('the area chart', () => {
+  const SERIES = [
+    { label: 'Jul', value: 40 },
+    { label: 'Aug', value: 90 },
+    { label: 'Sep', value: 60 },
+  ];
+
+  it('names the peak, so the shape does not have to be measured', () => {
+    render(<AreaChart points={SERIES} label="Cases" />);
+    expect(screen.getByText(/peak 90/)).toBeInTheDocument();
+  });
+
+  it('says so rather than drawing a line through one point', () => {
+    render(<AreaChart points={[{ label: 'Sep', value: 3 }]} />);
+    expect(screen.getByText(/not enough periods/i)).toBeInTheDocument();
   });
 });

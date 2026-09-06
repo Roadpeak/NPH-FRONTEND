@@ -16,7 +16,14 @@ import {
 
 type SubcountyBurden = Awaited<ReturnType<typeof ministry.subcounty>>[number];
 import { PORTALS } from '@/lib/portals';
-import { StatCard, BarChart, Funnel, ChartLegend } from '@/components/charts';
+import {
+  StatCard,
+  BarChart,
+  Funnel,
+  ChartLegend,
+  Donut,
+  Gauge,
+} from '@/components/charts';
 
 /**
  * The Ministry dashboard.
@@ -283,31 +290,117 @@ export default function MinistryPage() {
 
         {metric === 'BURDEN' && (
           <>
-            <div className="mb-5 grid gap-3 sm:grid-cols-3">
-              <div className="card px-4 py-3.5">
-                <p className="eyebrow mb-1">Confirmed cases</p>
-                <p className="font-mono text-3xl font-semibold tabular-nums">{totalCases.toLocaleString()}</p>
-                <p className="text-micro text-ink-faint">Malaria · last 30 days</p>
-              </div>
-              <div className="card px-4 py-3.5">
-                <p className="eyebrow mb-1">Counties reporting</p>
-                <p className="font-mono text-3xl font-semibold tabular-nums">{burden.length}</p>
-                <p className="text-micro text-ink-faint">of {countyTotal}</p>
-              </div>
-              <div className="card px-4 py-3.5">
-                <p className="eyebrow mb-1">Data completeness</p>
-                <p className="font-mono text-3xl font-semibold tabular-nums">
-                  {prov?.completenessPercent ?? 0}%
-                </p>
-                {/* A rise in cases and a rise in REPORTING are
-                    indistinguishable without this. */}
-                <p className="text-micro text-ink-faint">
-                  {prov?.facilitiesReporting ?? 0} of {prov?.facilitiesRegistered ?? 0}{' '}
-                  facilities
-                </p>
-              </div>
+            {/*
+              A dashboard grid rather than a single column.
+
+              Four headline figures, then the county ranking beside the
+              things that qualify it — where the cases are new, and whether
+              the counties reporting them are reporting completely. Reading
+              a burden number without its completeness is how a rise in
+              REPORTING gets announced as a rise in disease.
+            */}
+            <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard
+                label="Confirmed cases"
+                value={totalCases}
+                caption="Malaria · last 30 days"
+              />
+              <StatCard
+                label="First-ever episodes"
+                value={burden.reduce((n, b) => n + b.newCases, 0)}
+                caption="Not a repeat presentation"
+              />
+              <StatCard
+                label="Counties reporting"
+                value={burden.length}
+                caption={`of ${countyTotal}`}
+                tone={burden.length < countyTotal / 2 ? 'caution' : 'default'}
+              />
+              <StatCard
+                label="Data completeness"
+                value={prov?.completenessPercent ?? 0}
+                unit="%"
+                caption={`${prov?.facilitiesReporting ?? 0} of ${prov?.facilitiesRegistered ?? 0} facilities`}
+                tone={(prov?.completenessPercent ?? 0) < 80 ? 'caution' : 'good'}
+              />
             </div>
 
+            <div className="mb-5 grid gap-4 lg:grid-cols-3">
+              {/* New against repeat. A whole that genuinely sums, which is
+                  the only case a ring is the right shape for. */}
+              <section className="card card-body">
+                <h2 className="eyebrow mb-3">New against repeat presentations</h2>
+                <Donut
+                  centreValue={totalCases.toLocaleString('en-GB')}
+                  centreLabel="cases"
+                  slices={[
+                    {
+                      label: 'First-ever episode',
+                      value: burden.reduce((n, b) => n + b.newCases, 0),
+                      tone: 'gov',
+                    },
+                    {
+                      label: 'Seen before',
+                      value: Math.max(
+                        0,
+                        totalCases - burden.reduce((n, b) => n + b.newCases, 0),
+                      ),
+                      tone: 'faint',
+                    },
+                  ]}
+                />
+                <p className="mt-3 text-micro text-ink-faint">
+                  A county whose cases are almost all repeats has a treatment
+                  problem, not an outbreak.
+                </p>
+              </section>
+
+              {/*
+                National reporting completeness, not a per-county repeat.
+
+                A grid of county gauges duplicated the names in the ranked
+                chart below and in the suppression note, which made the page
+                say "Nairobi" three times in three different meanings. What
+                is NOT already on this screen is how many counties are
+                reporting well enough for their figures to be comparable.
+              */}
+              <section className="card card-body lg:col-span-2">
+                <h2 className="eyebrow mb-3">Reporting completeness</h2>
+                {burden.length === 0 ? (
+                  <p className="text-sm text-ink-faint">No counties reporting.</p>
+                ) : (
+                  <>
+                    {/*
+                      One gauge, and only the figure that is not already on
+                      this screen. The national completeness percentage is a
+                      stat card above and the facility count is in the
+                      provenance block below — repeating either made the
+                      same number appear three times in three shapes.
+                    */}
+                    <div className="mb-4">
+                      <Gauge
+                        label="Counties reporting at or above target"
+                        value={
+                          (burden.filter((b) => b.completenessPercent >= 80).length /
+                            Math.max(1, burden.length)) *
+                          100
+                        }
+                        target={80}
+                        caption={`${burden.filter((b) => b.completenessPercent >= 80).length} of ${burden.length} counties returned data from most of their facilities`}
+                      />
+                    </div>
+                    <p className="text-micro text-ink-faint">
+                      The tick is the 80% national target. A burden figure from
+                      a county below it is not comparable to one above — a
+                      rise in cases and a rise in REPORTING look identical
+                      without this.
+                    </p>
+                  </>
+                )}
+              </section>
+            </div>
+
+            <section className="card card-body">
             <h2 className="eyebrow mb-2">Cases by county · malaria</h2>
             <p className="mb-2 text-micro text-ink-faint">
               Select a county for its subcounty breakdown.
@@ -422,14 +515,13 @@ export default function MinistryPage() {
             )}
 
             <ChartLegend
-              items={[
-                { swatch: 'gov', label: 'Confirmed cases' },
-                // Deliberately does not repeat the threshold: the note above
-                // already states it, and saying it twice made the two
-                // indistinguishable to anyone scanning for it.
-                { swatch: 'hatch', label: 'Withheld for disclosure control' },
-              ]}
+              // Only the mark that needs explaining. The heading above
+              // already says the bars are confirmed cases, and a legend
+              // that repeats it makes the one entry that carries new
+              // information harder to find.
+              items={[{ swatch: 'hatch', label: 'Withheld for disclosure control' }]}
             />
+            </section>
 
             {gaps.length > 0 && (
               <>
@@ -617,37 +709,95 @@ export default function MinistryPage() {
 
         {metric === 'SURVEILLANCE' && (
           <>
-            <h2 className="eyebrow mb-2">Notifiable disease signals</h2>
             {surveillance.length === 0 ? (
               <p className="text-sm text-ink-faint">
                 No notifiable conditions recorded in this period.
               </p>
             ) : (
               <>
-                <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                  <div className="card px-4 py-3.5">
-                    <p className="eyebrow mb-1">Signals</p>
-                    <p className="font-mono text-3xl font-semibold tabular-nums">{surveillance.length}</p>
-                    <p className="text-micro text-ink-faint">disease · county clusters</p>
-                  </div>
-                  <div className="card px-4 py-3.5">
-                    <p className="eyebrow mb-1">Spreading</p>
-                    <p className="text-2xl font-semibold tabular text-critical">
-                      {spreading.length}
-                    </p>
-                    {/* Multi-facility is the signal that separates an outbreak
-                        from one family walking into one clinic. */}
-                    <p className="text-micro text-ink-faint">seen at 2+ facilities</p>
-                  </div>
-                  <div className="card px-4 py-3.5">
-                    <p className="eyebrow mb-1">Counties affected</p>
-                    <p className="font-mono text-3xl font-semibold tabular-nums">
-                      {new Set(surveillance.map((s) => s.countyId)).size}
-                    </p>
-                    <p className="text-micro text-ink-faint">of {countyTotal}</p>
-                  </div>
+                <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <StatCard
+                    label="Signals"
+                    value={surveillance.length}
+                    caption="Disease · county clusters"
+                  />
+                  <StatCard
+                    label="Spreading"
+                    value={spreading.length}
+                    caption="Seen at 2 or more facilities"
+                    tone={spreading.length > 0 ? 'critical' : 'good'}
+                  />
+                  <StatCard
+                    label="Counties affected"
+                    value={new Set(surveillance.map((x) => x.countyId)).size}
+                    caption={`of ${countyTotal}`}
+                  />
+                  <StatCard
+                    label="Cases in signals"
+                    value={surveillance.reduce((n, x) => n + x.cases, 0)}
+                    caption="Across every cluster"
+                  />
                 </div>
 
+                <div className="mb-5 grid gap-4 lg:grid-cols-3">
+                  {/* Contained against spreading. The distinction that
+                      decides whether anyone travels tonight, so it gets a
+                      shape rather than a sentence. */}
+                  <section className="card card-body">
+                    <h2 className="eyebrow mb-3">Contained against spreading</h2>
+                    <Donut
+                      centreValue={surveillance.length}
+                      centreLabel="signals"
+                      slices={[
+                        {
+                          label: 'Multi-facility',
+                          value: spreading.length,
+                          tone: 'critical',
+                        },
+                        {
+                          label: 'Single facility',
+                          value: surveillance.length - spreading.length,
+                          tone: 'caution',
+                        },
+                      ]}
+                    />
+                    <p className="mt-3 text-micro text-ink-faint">
+                      One family walking into one clinic is not an outbreak.
+                      Two facilities is transmission.
+                    </p>
+                  </section>
+
+                  {/* Which counties carry the load. A ranked bar answers
+                      "where do we send people" in one look. */}
+                  <section className="card card-body lg:col-span-2">
+                    <h2 className="eyebrow mb-3">Signal load by county</h2>
+                    <BarChart
+                      data={Object.entries(
+                        surveillance.reduce<Record<string, number>>((acc, x) => {
+                          acc[x.countyId] = (acc[x.countyId] ?? 0) + x.cases;
+                          return acc;
+                        }, {}),
+                      )
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([countyId, cases]) => ({
+                          key: countyId,
+                          label: nameOf(countyId),
+                          value: cases,
+                          emphasis: surveillance.some(
+                            (x) => x.countyId === countyId && x.facilitiesInvolved > 1,
+                          ),
+                        }))}
+                    />
+                    <ChartLegend
+                      items={[
+                        { swatch: 'gov', label: 'Cases in notifiable clusters' },
+                        { swatch: 'caution', label: 'County has a spreading cluster' },
+                      ]}
+                    />
+                  </section>
+                </div>
+
+                <h2 className="eyebrow mb-2">Signals, most concerning first</h2>
                 {/* Ordered by concern, not alphabetically. A cluster across
                     several facilities outranks a larger count inside one,
                     because transmission is the thing worth acting on. */}
