@@ -16,12 +16,20 @@ import {
 /**
  * Encounter entry.
  *
- * The screen that decides adoption. Demo data for now — the backend
- * endpoints exist and are tested, but auth and check-in are not wired yet,
- * so this proves the interaction rather than the integration.
+ * The screen that decides adoption: a coded diagnosis and a prescription
+ * recorded in sixteen keystrokes, without touching the mouse.
  *
- * What it must demonstrate: a coded diagnosis and a prescription recorded
- * in sixteen keystrokes, without touching the mouse.
+ * Five steps, in the order a consultation actually happens — presentation,
+ * diagnosis, treatment, medication, disposition. Nothing is written until
+ * Complete, because clinical tables are append-only: a diagnosis saved the
+ * moment it is tapped cannot be removed when the clinician changes their
+ * mind, only superseded with a formal amendment. Holding the consultation
+ * locally means a mis-tap costs nothing.
+ *
+ * Diagnosis and medication search against a LOCAL index — step one of the
+ * resolution ladder must never wait on the network. Treatments search the
+ * server, because that catalogue is small and not yet worth shipping to
+ * every device.
  */
 
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -34,6 +42,8 @@ import {
   ApiError,
   type PatientSummary,
   type CheckInSession,
+  type Disposition,
+  type TreatmentHit,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { WorkerNav } from '@/components/WorkerNav';
@@ -49,6 +59,22 @@ import { WorkerNav } from '@/components/WorkerNav';
  * against the right record, that is the most dangerous defect available.
  */
 const DEMO_IDENTIFIER = '39104882';
+
+/** What kind of visit this is — the server needs it to open an encounter. */
+type EncounterKind =
+  | 'OUTPATIENT'
+  | 'EMERGENCY'
+  | 'MATERNITY'
+  | 'IMMUNISATION'
+  | 'SCREENING'
+  | 'FOLLOW_UP';
+
+interface RecordedTreatment {
+  /** An NHP-TX code, or UNCODED for one the clinician typed themselves. */
+  code: string;
+  title: string;
+  indication: string;
+}
 
 interface RecordedDiagnosis {
   code: string;
@@ -76,6 +102,26 @@ interface RecordedMedication {
  */
 const FREQUENCIES = ['OD', 'BD', 'TDS', 'QDS', 'PRN', 'STAT'];
 
+/**
+ * How a consultation can end.
+ *
+ * REFERRED is deliberately absent: the referral flow records that
+ * disposition itself and links the referral to the encounter. Offering it
+ * here would let a clinician claim a referral that was never created, and
+ * the server refuses it for the same reason.
+ */
+const DISPOSITIONS: Array<{ value: Disposition; label: string; detail: string }> = [
+  { value: 'DISCHARGED', label: 'Discharged', detail: 'Went home after being seen' },
+  { value: 'ADMITTED', label: 'Admitted', detail: 'Kept in this facility for further care' },
+  {
+    value: 'LEFT_AGAINST_ADVICE',
+    label: 'Left against advice',
+    detail: 'Chose to leave before care was finished',
+  },
+  { value: 'ABSCONDED', label: 'Absconded', detail: 'Left without being seen or telling anyone' },
+  { value: 'DIED', label: 'Died', detail: 'Died during this visit' },
+];
+
 const STEPS = [
   'Presentation',
   'Diagnosis',
@@ -99,7 +145,10 @@ function Encounter() {
   const [me, setMe] = useState<{ name: string; licenceNumber: string | null } | null>(null);
   const [diagnosisIndex, setDiagnosisIndex] = useState<DiagnosisTerm[]>([]);
   const [medicationIndex, setMedicationIndex] = useState<MedicationTerm[]>([]);
-  const [step, setStep] = useState(1);
+  const [treatmentIndex, setTreatmentIndex] = useState<TreatmentHit[]>([]);
+  // Starts at Presentation. The chief complaint is what opens an
+  // encounter server-side, so nothing else can be recorded before it.
+  const [step, setStep] = useState(0);
   const [diagnoses, setDiagnoses] = useState<RecordedDiagnosis[]>([]);
   const [medications, setMedications] = useState<RecordedMedication[]>([]);
   const [notes, setNotes] = useState<string[]>([]);
@@ -109,9 +158,39 @@ function Encounter() {
     alternatives: string[];
   } | null>(null);
 
+  // --- step 0: presentation ---
+  const [chiefComplaint, setChiefComplaint] = useState('');
+  const [encounterKind, setEncounterKind] = useState<EncounterKind>('OUTPATIENT');
+  const [triageBand, setTriageBand] = useState<'' | 'RED' | 'ORANGE' | 'YELLOW' | 'GREEN'>('');
+
+  // --- step 2: treatments administered ---
+  const [treatments, setTreatments] = useState<RecordedTreatment[]>([]);
+
+  // --- step 4: disposition ---
+  const [disposition, setDisposition] = useState<Disposition | ''>('');
+
+  /*
+   * Saving happens once, on Complete.
+   *
+   * Clinical tables are append-only: a diagnosis written the moment it is
+   * tapped cannot be removed if the clinician changes their mind, only
+   * superseded with a formal amendment. Holding the encounter locally until
+   * it is finished means a mis-tap costs nothing, and the record receives
+   * one coherent consultation rather than a trail of corrections.
+   *
+   * The cost is honest and stated: a browser that dies mid-encounter loses
+   * the work. That is the better trade while a clinician is still deciding.
+   */
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedEncounterId, setSavedEncounterId] = useState<string | null>(null);
+
   useEffect(() => {
     loadDiagnosisIndex().then(setDiagnosisIndex);
     loadMedicationIndex().then(setMedicationIndex);
+    // A failure here is survivable: the clinician can still type the
+    // treatment themselves, so it does not surface as an error.
+    nhp.searchTreatments('').then(setTreatmentIndex).catch(() => setTreatmentIndex([]));
   }, []);
 
   // Real data from NHP-BACKEND. The search index stays local — step 1 of the
@@ -220,6 +299,124 @@ function Encounter() {
       })),
     [medicationIndex],
   );
+
+  /*
+   * Treatments are fetched once and then searched locally, like diagnoses
+   * and medicines.
+   *
+   * The catalogue is 83 rows. Keeping the search synchronous means the
+   * component contract stays the same across all three steps, and a
+   * clinician who has loaded the screen can keep working if the network
+   * drops mid-consultation.
+   */
+  const queryTreatments = useCallback(
+    (q: string): SearchResult[] => {
+      const query = q.trim().toLowerCase();
+      if (query.length < 2) return [];
+      return treatmentIndex
+        .filter(
+          (t) =>
+            t.title.toLowerCase().includes(query) ||
+            t.txCode.toLowerCase().startsWith(query) ||
+            t.plainEn.toLowerCase().includes(query),
+        )
+        .slice(0, 8)
+        .map((t) => ({
+          code: t.txCode,
+          title: t.title,
+          detail: t.plainEn,
+          badge: t.requiresConsent
+            ? { label: 'CONSENT', tone: 'caution' as const }
+            : undefined,
+        }));
+    },
+    [treatmentIndex],
+  );
+
+  function addTreatment(result: SearchResult) {
+    setTreatments((prev) =>
+      prev.some((t) => t.code === result.code && result.code !== 'UNCODED')
+        ? prev
+        : [...prev, { code: result.code, title: result.title, indication: '' }],
+    );
+  }
+
+  /** A treatment the catalogue does not list, in the clinician's own words. */
+  function addUncodedTreatment(text: string) {
+    setTreatments((prev) => [
+      ...prev,
+      { code: 'UNCODED', title: text, indication: '' },
+    ]);
+  }
+
+  /**
+   * Writes the whole consultation, then closes it.
+   *
+   * Ordered so the encounter exists before anything hangs off it, and the
+   * close comes last — the server refuses a treatment on a closed encounter,
+   * which is the guarantee that a record cannot grow after it was signed off.
+   *
+   * If a step fails partway, the encounter stays OPEN rather than being
+   * closed with half the consultation missing. An open encounter is visibly
+   * unfinished and can be completed; one closed around missing diagnoses
+   * looks complete and is not. `savedEncounterId` keeps the id so a retry
+   * adds to the same encounter instead of opening a second one for the same
+   * visit.
+   */
+  async function completeEncounter() {
+    if (!patient || saving) return;
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      let encounterId = savedEncounterId;
+      if (!encounterId) {
+        const opened = await nhp.openEncounter({
+          personId: patient.person.id,
+          kind: encounterKind,
+          chiefComplaint: chiefComplaint.trim(),
+        });
+        encounterId = opened.id;
+        setSavedEncounterId(encounterId);
+      }
+
+      for (const d of diagnoses) {
+        await nhp.recordDiagnosis(encounterId, { icd11Code: d.code });
+      }
+
+      for (const t of treatments) {
+        await nhp.recordTreatment(encounterId, {
+          txCode: t.code,
+          ...(t.code === 'UNCODED' ? { title: t.title } : {}),
+          // The chief complaint is the honest fallback: it is why the
+          // treatment happened, even when nobody typed a narrower reason.
+          indication: t.indication.trim() || chiefComplaint.trim(),
+        });
+      }
+
+      for (const m of medications) {
+        const amount = Number.parseFloat(m.dose);
+        await nhp.recordMedication(encounterId, {
+          kemlCode: m.code,
+          doseAmount: Number.isFinite(amount) ? amount : 1,
+          doseUnit: m.dose.replace(/^[\d.\s]+/, '').trim() || 'unit',
+          frequency: m.frequency,
+          ...(m.durationDays ? { durationDays: Number(m.durationDays) } : {}),
+        });
+      }
+
+      await nhp.closeEncounter(encounterId, disposition as Disposition);
+      router.push(`/patient/${patient.person.displayNumber}`);
+    } catch (e) {
+      setSaveError(
+        e instanceof ApiError
+          ? e.message
+          : 'Could not save this encounter. Nothing was closed — try again.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function addDiagnosis(result: SearchResult) {
     setDiagnoses((prev) =>
@@ -404,11 +601,123 @@ function Encounter() {
               />
             )}
 
-            {step !== 1 && step !== 3 && (
-              <p className="rounded-md border border-dashed border-rule bg-surface px-4 py-8 text-center text-sm text-ink-faint">
-                {STEPS[step]} — not built yet. Diagnosis and Medication are the
-                two that carry the interaction design.
-              </p>
+            {/* --- 0. Presentation --- */}
+            {step === 0 && (
+              <div className="space-y-4">
+                <label className="block">
+                  <span className="eyebrow mb-1 block">
+                    What they have come for
+                  </span>
+                  <textarea
+                    value={chiefComplaint}
+                    onChange={(e) => setChiefComplaint(e.target.value)}
+                    rows={3}
+                    maxLength={500}
+                    autoFocus
+                    /* Their words, not a diagnosis. The diagnosis is step
+                       two, and inviting one here means the record carries a
+                       conclusion before anyone examined the patient. */
+                    placeholder="In their own words — e.g. fever and headache for three days"
+                    className="w-full rounded border border-rule bg-surface px-3 py-2 text-sm"
+                  />
+                </label>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="eyebrow mb-1 block">Kind of visit</span>
+                    <select
+                      value={encounterKind}
+                      onChange={(e) => setEncounterKind(e.target.value as EncounterKind)}
+                      className="w-full rounded border border-rule bg-surface px-3 py-2 text-sm"
+                    >
+                      <option value="OUTPATIENT">Outpatient</option>
+                      <option value="EMERGENCY">Emergency</option>
+                      <option value="MATERNITY">Maternity</option>
+                      <option value="IMMUNISATION">Immunisation</option>
+                      <option value="SCREENING">Screening</option>
+                      <option value="FOLLOW_UP">Follow-up</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="eyebrow mb-1 block">Triage (optional)</span>
+                    <select
+                      value={triageBand}
+                      onChange={(e) =>
+                        setTriageBand(e.target.value as typeof triageBand)
+                      }
+                      className="w-full rounded border border-rule bg-surface px-3 py-2 text-sm"
+                    >
+                      <option value="">Not triaged</option>
+                      <option value="RED">Red — immediate</option>
+                      <option value="ORANGE">Orange — very urgent</option>
+                      <option value="YELLOW">Yellow — urgent</option>
+                      <option value="GREEN">Green — standard</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* --- 2. Treatment --- */}
+            {step === 2 && (
+              <CodedSearch
+                label="Search treatments given"
+                placeholder="Type a treatment — try dressing, oxygen, suturing, counselling"
+                onQuery={queryTreatments}
+                onSelect={addTreatment}
+                /* A clinician does things the catalogue has not thought of.
+                   Refusing them would produce a record that quietly
+                   disagrees with what happened. */
+                onKeepAsNote={addUncodedTreatment}
+                autoFocus
+              />
+            )}
+
+            {/* --- 4. Disposition --- */}
+            {step === 4 && (
+              <div className="space-y-4">
+                <fieldset>
+                  <legend className="eyebrow mb-2">How the visit ended</legend>
+                  <div className="space-y-1.5">
+                    {DISPOSITIONS.map((d) => (
+                      <label
+                        key={d.value}
+                        className={`flex cursor-pointer items-start gap-3 rounded border px-3 py-2.5 ${
+                          disposition === d.value
+                            ? 'border-gov bg-gov-soft'
+                            : 'border-rule bg-surface hover:bg-surface-alt'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="disposition"
+                          value={d.value}
+                          checked={disposition === d.value}
+                          onChange={() => setDisposition(d.value)}
+                          className="mt-1"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold">{d.label}</span>
+                          <span className="block text-micro text-ink-soft">{d.detail}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
+                {/*
+                  Referral is deliberately absent from the list above.
+
+                  The referral flow records that disposition itself and links
+                  the referral to it; choosing REFERRED here would claim a
+                  referral that was never made, and the server refuses it.
+                */}
+                <p className="rounded border border-dashed border-rule px-3 py-2 text-micro text-ink-faint">
+                  Referring instead? Create the referral — it records the
+                  disposition and links the letter to this encounter.
+                </p>
+              </div>
             )}
 
             {/* --- what has been recorded --- */}
@@ -433,6 +742,62 @@ function Encounter() {
                     >
                       <span className="min-w-0 flex-1 truncate text-sm">{n}</span>
                       <span className="chip chip-caution">UNCODED NOTE</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {treatments.length > 0 && (
+              <section className="mt-6 border-t border-rule pt-5">
+                <p className="eyebrow mb-2">Treatments given</p>
+                <ul className="space-y-1.5">
+                  {treatments.map((t, i) => (
+                    <li
+                      key={`${t.code}-${i}`}
+                      className="rounded border border-rule bg-surface px-3 py-2"
+                    >
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                          {t.title}
+                        </span>
+                        {t.code === 'UNCODED' ? (
+                          <span className="chip chip-caution">UNCODED</span>
+                        ) : (
+                          <span className="font-mono text-micro text-ink-faint">
+                            {t.code}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTreatments((prev) => prev.filter((_, j) => j !== i))
+                          }
+                          className="text-micro text-ink-faint underline hover:text-critical"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <label className="block">
+                        <span className="eyebrow mb-0.5 block">
+                          What it was for (optional)
+                        </span>
+                        <input
+                          value={t.indication}
+                          onChange={(e) =>
+                            setTreatments((prev) =>
+                              prev.map((x, j) =>
+                                j === i ? { ...x, indication: e.target.value } : x,
+                              ),
+                            )
+                          }
+                          /* Left blank, the chief complaint is used. It is
+                             the honest reason the treatment happened, and
+                             the server requires an indication either way. */
+                          placeholder={chiefComplaint || 'Defaults to the reason for the visit'}
+                          className="w-full rounded border border-rule bg-surface px-2 py-1 text-sm"
+                        />
+                      </label>
                     </li>
                   ))}
                 </ul>
@@ -542,6 +907,66 @@ function Encounter() {
                   })}
                 </ul>
               </section>
+            )}
+            {/* --- finishing --- */}
+            <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-rule pt-5">
+              {step > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStep((n) => n - 1)}
+                  className="inline-flex min-h-[44px] items-center rounded-md border border-rule px-4 text-sm text-ink-soft hover:bg-surface-alt"
+                >
+                  Back
+                </button>
+              )}
+
+              {step < STEPS.length - 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setStep((n) => n + 1)}
+                  /* The chief complaint is what opens the encounter on the
+                     server. Without it nothing else can be recorded, so the
+                     first step is the one gate in the flow. */
+                  disabled={step === 0 && !chiefComplaint.trim()}
+                  className="inline-flex min-h-[44px] items-center rounded-md bg-gov px-5 font-semibold text-white disabled:opacity-50"
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={completeEncounter}
+                  disabled={saving || !disposition || !chiefComplaint.trim() || !session}
+                  className="inline-flex min-h-[44px] items-center rounded-md bg-gov px-5 font-semibold text-white disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : 'Complete encounter'}
+                </button>
+              )}
+
+              {step === STEPS.length - 1 && !disposition && (
+                <span className="text-micro text-ink-faint">
+                  Choose how the visit ended to finish.
+                </span>
+              )}
+            </div>
+
+            {saveError && (
+              <p
+                role="alert"
+                className="mt-3 rounded border border-critical/40 bg-critical-soft px-3 py-2 text-sm text-critical"
+              >
+                {saveError}
+                {savedEncounterId && (
+                  /* Says what survived. Without this the clinician cannot
+                     tell whether pressing Complete again would duplicate
+                     the consultation. */
+                  <span className="mt-1 block text-micro">
+                    The encounter was opened and is still recorded as
+                    unfinished — pressing Complete again will finish it
+                    rather than start a second one.
+                  </span>
+                )}
+              </p>
             )}
           </div>
         </div>

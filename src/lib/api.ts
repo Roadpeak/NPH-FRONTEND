@@ -1160,4 +1160,59 @@ export const nhp = {
       `/encounters/${encounterId}/conditions`,
       body,
     ),
+
+  recordMedication: (
+    encounterId: string,
+    body: {
+      kemlCode: string;
+      genericName?: string;
+      route?: string;
+      doseAmount: number;
+      doseUnit: string;
+      frequency: string;
+      durationDays?: number;
+    },
+  ) => api.post<{ id: string }>(`/encounters/${encounterId}/medications`, body),
+
+  recordTreatment: (
+    encounterId: string,
+    body: {
+      txCode: string;
+      title?: string;
+      indication: string;
+      outcome?: string;
+    },
+  ) => api.post<{ id: string; code: string; title: string }>(
+    `/encounters/${encounterId}/treatments`,
+    body,
+  ),
+
+  closeEncounter: (encounterId: string, disposition: Disposition) =>
+    api.patch<{ id: string; endedAt: string; disposition: Disposition }>(
+      `/encounters/${encounterId}/close`,
+      { disposition },
+    ),
+
+  searchTreatments: (q: string) =>
+    api.get<TreatmentHit[]>(`/vocab/treatments?q=${encodeURIComponent(q)}`),
 };
+
+/** How a consultation ended. */
+export type Disposition =
+  | 'DISCHARGED'
+  | 'ADMITTED'
+  | 'REFERRED'
+  | 'ABSCONDED'
+  | 'DIED'
+  | 'LEFT_AGAINST_ADVICE';
+
+export interface TreatmentHit {
+  txCode: string;
+  title: string;
+  plainEn: string;
+  plainSw: string;
+  category: string;
+  minKephLevel: number;
+  requiresConsent: boolean;
+  score: number;
+}
