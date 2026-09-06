@@ -13,7 +13,7 @@ import {
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { WorkerNav } from '@/components/WorkerNav';
-import { Field, inputClass } from '@/components/PortalShell';
+import { inputClass } from '@/components/PortalShell';
 import { Icon } from '@/components/icons';
 
 /**
@@ -79,19 +79,30 @@ export default function PatientSearchPage() {
     <div className="min-h-screen bg-surface-sunken">
       <WorkerNav />
 
-      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <h1 className="mb-1 font-serif text-2xl font-medium tracking-tight">
-          Find a patient
-        </h1>
-        <p className="mb-6 max-w-prose text-sm text-ink-soft">
-          Search by National ID or NHP number. Opening a record is logged and
-          shown to that patient.
-        </p>
+      {/*
+        A search page, laid out as one.
+
+        This was a small box in the top-left of a 1512px screen with two
+        thirds of it empty — the page's entire purpose reading as an
+        afterthought. A clinician standing at a terminal between patients
+        should find the field without looking for it, so it is centred, wide,
+        and the largest thing on the screen until there is a result to show.
+      */}
+      <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-xl text-center">
+          <h1 className="mb-1 font-serif text-3xl font-medium tracking-tight">
+            Find a patient
+          </h1>
+          <p className="mb-6 text-sm text-ink-soft">
+            By National ID or NHP number. Opening a record is logged and shown
+            to that patient.
+          </p>
+        </div>
 
         {!session && (
           /* Said before they search, not after they try to open a record:
              the server refuses a read without an open check-in. */
-          <p className="mb-4 rounded-md border border-caution/40 bg-caution-soft px-4 py-3 text-sm text-caution">
+          <p className="mx-auto mb-5 max-w-xl rounded-md border border-caution/40 bg-caution-soft px-4 py-3 text-sm text-caution">
             You are not checked in, so you cannot open a record.{' '}
             <Link href="/worker/shift" className="font-semibold underline">
               Start your shift
@@ -100,30 +111,34 @@ export default function PatientSearchPage() {
           </p>
         )}
 
-        <form onSubmit={search} className="mb-6 max-w-md">
-          <Field
-            id="identifier"
-            label="National ID or NHP number"
-            hint="For a child, search their parent or guardian's National ID."
-          >
-            <div className="flex gap-2">
-              <input
-                id="identifier"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="12345678 or NHP-XXXX-XXXX"
-                className={`${inputClass} font-mono`}
-              />
-              <button
-                type="submit"
-                disabled={busy || identifier.trim().length < 4}
-                className="shrink-0 rounded-md bg-gov px-4 py-2.5 font-semibold text-surface disabled:opacity-60"
-              >
-                <Icon name="search" size={15} className="mr-1.5 -mt-0.5" />
-                {busy ? 'Searching…' : 'Search'}
-              </button>
-            </div>
-          </Field>
+        <form onSubmit={search} className="mx-auto mb-8 max-w-xl">
+          <label htmlFor="identifier" className="eyebrow mb-1.5 block">
+            National ID or NHP number
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="identifier"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="12345678 or NHP-XXXX-XXXX"
+              autoFocus
+              /* Larger than an ordinary field. It is the one thing this
+                 screen exists to do, and a number typed wrong sends a
+                 clinician into the wrong record. */
+              className={`${inputClass} h-14 font-mono text-lg tracking-[0.04em]`}
+            />
+            <button
+              type="submit"
+              disabled={busy || identifier.trim().length < 4}
+              className="btn shrink-0 bg-gov px-5 text-white hover:bg-gov/90"
+            >
+              <Icon name="search" size={15} />
+              {busy ? 'Searching…' : 'Search'}
+            </button>
+          </div>
+          <p className="mt-1.5 text-micro text-ink-faint">
+            For a child, search their parent or guardian&apos;s National ID.
+          </p>
         </form>
 
         {error && (
@@ -136,7 +151,7 @@ export default function PatientSearchPage() {
         )}
 
         {result && !result.match && result.dependants.length === 0 && (
-          <p className="text-sm text-ink-faint">
+          <p className="mx-auto max-w-xl text-sm text-ink-faint">
             No record holds that identifier. Check the number, or register
             them at reception.
           </p>
@@ -144,23 +159,25 @@ export default function PatientSearchPage() {
 
         {result?.match && (
           <>
-            <h2 className="eyebrow mb-2">Patient</h2>
-            <PatientRow person={result.match} canOpen={Boolean(session)} />
+            <h2 className="eyebrow mx-auto mb-2 max-w-xl">Patient</h2>
+            <div className="mx-auto max-w-xl">
+              <PatientRow person={result.match} canOpen={Boolean(session)} />
+            </div>
           </>
         )}
 
         {result && result.dependants.length > 0 && (
           <>
-            <h2 className="eyebrow mb-2 mt-6">
+            <h2 className="eyebrow mx-auto mb-2 mt-6 max-w-xl">
               Children in their care
             </h2>
-            <p className="mb-2 max-w-prose text-micro text-ink-faint">
+            <p className="mx-auto mb-2 max-w-xl text-micro text-ink-faint">
               {/* Why this list exists at all: a child has no ID of their own,
                   so a facility reaches them through their guardian. */}
               A child is found through their guardian, because they have no
               National ID of their own.
             </p>
-            <ul className="space-y-2">
+            <ul className="mx-auto max-w-xl space-y-2">
               {result.dependants.map((d) => (
                 <li key={d.id}>
                   <PatientRow person={d} canOpen={Boolean(session)} />
@@ -198,7 +215,7 @@ function PatientRow({ person, canOpen }: { person: PersonSummary; canOpen: boole
       {canOpen ? (
         <Link
           href={`/patient/${person.displayNumber}`}
-          className="rounded-md bg-gov px-4 py-2 text-sm font-semibold text-surface"
+          className="btn shrink-0 bg-gov text-white hover:bg-gov/90"
         >
           Open record
         </Link>

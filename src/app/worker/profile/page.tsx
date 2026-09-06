@@ -72,27 +72,31 @@ export default function WorkerProfilePage() {
         ) : (
           <>
             <h2 className="eyebrow mb-2">Professional registration</h2>
-            <dl className="mb-6 rounded-lg border border-rule bg-surface p-4 text-sm">
-              <div className="mb-2 flex justify-between gap-4">
-                <dt className="inline-flex items-center gap-1.5 text-ink-faint">
-                  <Icon name="clinician" size={14} />
-                  Name
-                </dt>
-                <dd className="text-right">{me.displayName ?? '—'}</dd>
-              </div>
-              <div className="mb-2 flex justify-between gap-4">
-                <dt className="text-ink-faint">Cadre</dt>
-                <dd>{me.cadre ? me.cadre.replace(/_/g, ' ').toLowerCase() : '—'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="inline-flex items-center gap-1.5 text-ink-faint">
-                  <Icon name="verified" size={14} />
-                  Licence
-                </dt>
-                <dd className="font-mono">{me.licenceNumber ?? '—'}</dd>
-              </div>
-            </dl>
-            <p className="mb-6 max-w-prose text-micro text-ink-faint">
+            {/*
+              The professional identity, led by the licence.
+
+              This was a three-row table where the name, the cadre and the
+              licence number all read at the same weight. The licence is the
+              one that matters: it is what authorises every clinical write,
+              it is stamped on every record they create, and it is the thing
+              a clinician is asked to quote.
+            */}
+            <div className="card mb-4 card-body">
+              <p className="eyebrow mb-1">
+                {me.cadre ? me.cadre.replace(/_/g, ' ').toLowerCase() : 'Practitioner'}
+              </p>
+              <p className="font-serif text-2xl font-medium leading-tight">
+                {me.displayName ?? '—'}
+              </p>
+              <p className="mt-3 flex items-center gap-2 font-mono text-lg tracking-[0.04em]">
+                <Icon name="verified" size={16} className="text-good" />
+                {me.licenceNumber ?? '—'}
+              </p>
+              <p className="mt-1 text-micro text-ink-faint">
+                Stamped on every record you write.
+              </p>
+            </div>
+            <p className="mb-7 max-w-prose text-micro text-ink-faint">
               {/* Said plainly, so nobody hunts for an edit button that should
                   not exist. */}
               These come from your regulator and cannot be changed here. If
@@ -110,7 +114,7 @@ export default function WorkerProfilePage() {
                 {facilities.map((f) => (
                   <li
                     key={f.affiliationId}
-                    className="flex items-center justify-between rounded border border-rule bg-surface px-3 py-2 text-sm"
+                    className="card-row flex items-center justify-between text-sm"
                   >
                     <span>{f.name}</span>
                     <span className="font-mono text-micro text-ink-faint">
@@ -123,14 +127,14 @@ export default function WorkerProfilePage() {
 
             <h2 className="eyebrow mb-2">Security</h2>
             {changingMfa ? (
-              <div className="rounded-lg border border-rule bg-surface p-4">
+              <div className="card card-body">
                 <MfaEnrolment
                   onDone={() => setChangingMfa(false)}
                   reason="Choose how you want to receive your sign-in codes. This replaces your current method."
                 />
               </div>
             ) : (
-              <div className="rounded-lg border border-rule bg-surface p-4">
+              <div className="card card-body">
                 <p className="mb-1 text-sm">
                   Your account requires a second factor at every sign-in.
                 </p>
@@ -140,7 +144,7 @@ export default function WorkerProfilePage() {
                 </p>
                 <button
                   onClick={() => setChangingMfa(true)}
-                  className="rounded-md border border-gov px-4 py-2 text-sm font-semibold text-gov"
+                  className="btn border border-gov text-gov hover:bg-gov-soft"
                 >
                   Change my second factor
                 </button>

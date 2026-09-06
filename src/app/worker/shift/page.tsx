@@ -106,31 +106,59 @@ export default function ShiftPage() {
           </p>
         )}
 
+        {/*
+          The check-in state, as a status board rather than a card.
+
+          This one fact gates every clinical write in the system, and it was
+          rendered at the same weight as the list of postings below it. A
+          clinician glancing at this page between patients is asking one
+          question — can I write? — and the answer should be readable from
+          across a room.
+        */}
         {session ? (
-          <div className="mb-6 rounded-lg border border-good/30 bg-good-soft px-4 py-4">
-            <p className="mb-1 inline-flex items-center gap-2 font-semibold text-good">
-              <Icon name="confirmed" size={16} />
-              Checked in at {session.facilityName}
-            </p>
-            <p className="mb-3 font-mono text-micro text-ink-soft">
-              {/* A session that lapses mid-consultation is the failure this
-                  countdown exists to prevent. */}
-              Expires in {session.minutesRemaining} minutes
-              {session.expiringSoon && ' — ending soon'}
-            </p>
-            <button
-              onClick={end}
-              disabled={busy === 'END'}
-              className="rounded-md border border-rule bg-surface px-4 py-2 text-sm font-semibold disabled:opacity-60"
+          <div className="mb-8 overflow-hidden rounded-lg border border-good/30 bg-good-soft">
+            <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-5">
+              <div className="min-w-0">
+                <p className="eyebrow mb-1 text-good">Checked in</p>
+                <p className="font-serif text-2xl font-medium leading-tight">
+                  {session.facilityName}
+                </p>
+              </div>
+              <button
+                onClick={end}
+                disabled={busy === 'END'}
+                className="btn shrink-0 border border-rule bg-surface hover:border-critical hover:text-critical"
+              >
+                {busy === 'END' ? 'Ending…' : 'End my shift'}
+              </button>
+            </div>
+            {/*
+              The countdown gets its own band. A session that lapses
+              mid-consultation is the failure this exists to prevent, and
+              when it is ending soon that has to be the loudest thing here.
+            */}
+            <p
+              className={`border-t px-5 py-2.5 font-mono text-micro ${
+                session.expiringSoon
+                  ? 'border-caution/40 bg-caution-soft font-semibold text-caution'
+                  : 'border-good/20 text-ink-soft'
+              }`}
             >
-              {busy === 'END' ? 'Ending…' : 'End my shift'}
-            </button>
+              {session.expiringSoon
+                ? `ENDING SOON — ${session.minutesRemaining} minutes left. Check in again before it lapses.`
+                : `Expires in ${session.minutesRemaining} minutes`}
+            </p>
           </div>
         ) : (
-          <p className="mb-6 rounded-md border border-caution/40 bg-caution-soft px-4 py-3 text-sm text-caution">
-            You are not checked in. You can read nothing and write nothing
-            clinical until you are.
-          </p>
+          <div className="mb-8 rounded-lg border border-caution/40 bg-caution-soft px-5 py-5">
+            <p className="eyebrow mb-1 text-caution">Not checked in</p>
+            <p className="font-serif text-2xl font-medium leading-tight">
+              You cannot open or write a record
+            </p>
+            <p className="mt-2 text-sm text-ink-soft">
+              Check in at one of your postings below to start your shift.
+            </p>
+          </div>
         )}
 
         <h2 className="eyebrow mb-2">Where you are posted</h2>
@@ -143,7 +171,7 @@ export default function ShiftPage() {
             is not broken — they are waiting on someone to authorise them,
             and this says who.
           */
-          <div className="rounded-lg border border-rule bg-surface px-4 py-4">
+          <div className="card card-body">
             <p className="mb-2 text-sm font-semibold">You are not posted anywhere yet</p>
             <p className="mb-1 max-w-prose text-sm text-ink-soft">
               <span className="font-semibold text-ink">At a private facility</span> — a
@@ -163,7 +191,7 @@ export default function ShiftPage() {
               return (
                 <li
                   key={f.affiliationId}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rule bg-surface px-4 py-3"
+                  className="card flex flex-wrap items-center justify-between gap-3 px-4 py-3"
                 >
                   <div className="min-w-0">
                     <p className="font-semibold">{f.name}</p>
@@ -181,7 +209,7 @@ export default function ShiftPage() {
                     <button
                       onClick={() => start(f.facilityId)}
                       disabled={busy !== null}
-                      className="rounded-md bg-gov px-4 py-2 text-sm font-semibold text-surface disabled:opacity-60"
+                      className="btn shrink-0 bg-gov text-white hover:bg-gov/90"
                     >
                       {busy === f.facilityId ? 'Checking in…' : 'Check in here'}
                     </button>
