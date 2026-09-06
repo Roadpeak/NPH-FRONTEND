@@ -931,3 +931,193 @@ export function LineChart({
     </figure>
   );
 }
+
+/* ----------------------------------------------------------- panel chrome */
+
+/**
+ * A titled panel.
+ *
+ * Title in bold dark sans, subtitle in grey underneath. The dashboard used
+ * a mono uppercase eyebrow for every heading, which gave a card title, a
+ * field label and a section marker exactly the same weight — so nothing on
+ * the page looked more important than anything else, and a reader had no
+ * entry point.
+ */
+export function Panel({
+  title,
+  subtitle,
+  action,
+  children,
+  className = '',
+}: {
+  title: string;
+  subtitle?: string;
+  /** A control that belongs to this panel — a period switch, a filter. */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`rounded-lg border border-rule bg-surface p-5 ${className}`}>
+      <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold leading-tight text-ink">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-sm text-ink-faint">{subtitle}</p>}
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * A row of figures inside one panel.
+ *
+ * Four separate bordered cards for four related numbers made each look like
+ * its own subject. These belong together — they describe one thing from
+ * four angles — so they share a panel and read as a strip.
+ */
+export function MetricStrip({
+  metrics,
+}: {
+  metrics: Array<{ label: string; value: string | number; tone?: SeriesTone }>;
+}) {
+  return (
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+      {metrics.map((m) => (
+        <div key={m.label}>
+          <dt className="mb-1 text-sm text-ink-faint">{m.label}</dt>
+          <dd
+            className="text-2xl font-semibold tabular-nums leading-none"
+            style={m.tone ? { color: toneVar(m.tone) } : undefined}
+          >
+            {typeof m.value === 'number' ? fmt(m.value) : m.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/**
+ * A big figure with its label beneath it and a small trend beside it.
+ *
+ * The label goes UNDER the number. A dashboard is scanned for figures, and
+ * putting a small grey caption above each one means the eye reads four
+ * labels before it reaches the first value.
+ */
+export function BigStat({
+  value,
+  unit,
+  label,
+  trend,
+  trendGood,
+  chart,
+}: {
+  value: string | number;
+  unit?: string;
+  label: string;
+  trend?: number | null;
+  trendGood?: 'up' | 'down';
+  /** A sparkline or mini chart, drawn beneath the figure. */
+  chart?: React.ReactNode;
+}) {
+  const rising = typeof trend === 'number' && trend > 0;
+  const flat = typeof trend === 'number' && Math.round(trend) === 0;
+  const trendTone = !trendGood
+    ? 'text-ink-faint'
+    : flat
+      ? 'text-ink-faint'
+      : (rising && trendGood === 'up') || (!rising && trendGood === 'down')
+        ? 'text-good'
+        : 'text-critical';
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-rule bg-surface">
+      <div className="px-5 pb-3 pt-4">
+        <p className="flex items-baseline gap-2">
+          <span className="text-3xl font-semibold tabular-nums leading-none text-ink">
+            {typeof value === 'number' ? fmt(value) : value}
+            {unit && <span className="text-2xl">{unit}</span>}
+          </span>
+          {typeof trend === 'number' && (
+            <span className={`text-sm font-semibold ${trendTone}`}>
+              {flat ? '±' : rising ? '↗' : '↘'} {Math.abs(Math.round(trend))}%
+            </span>
+          )}
+        </p>
+        <p className="mt-1.5 text-sm text-ink-faint">{label}</p>
+      </div>
+      {chart}
+    </div>
+  );
+}
+
+/**
+ * A labelled progress row — a value, its share, and a bar.
+ *
+ * For a breakdown where the parts are read one at a time rather than
+ * compared as a whole. A donut makes a reader judge angles; this does not.
+ */
+export function ProgressRow({
+  label,
+  value,
+  total,
+  tone = 'gov',
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone?: SeriesTone;
+}) {
+  const pct = total > 0 ? (value / total) * 100 : 0;
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between gap-3">
+        <span className="min-w-0 truncate text-sm text-ink-soft">{label}</span>
+        <span className="shrink-0 text-sm">
+          <span className="font-semibold tabular-nums">{fmt(value)}</span>
+          <span className="ml-1.5 text-ink-faint">({Math.round(pct)}%)</span>
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-rule-soft">
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${pct}%`, backgroundColor: toneVar(tone) }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** A period switch — Day / Week / Month, as a segmented control. */
+export function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ value: T; label: string }>;
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-md border border-rule">
+      {options.map((o, i) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          aria-pressed={value === o.value}
+          className={`px-3 py-1.5 text-sm ${i > 0 ? 'border-l border-rule' : ''} ${
+            value === o.value
+              ? 'bg-surface-alt font-semibold text-ink'
+              : 'text-ink-faint hover:bg-surface-alt'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}

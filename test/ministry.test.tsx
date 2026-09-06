@@ -164,7 +164,14 @@ describe('a suppressed county', () => {
     await renderPage();
     // Five counties reported; one is suppressed. A tile reading "4" would
     // understate coverage and make completeness look worse than it is.
-    expect(screen.getByText('5')).toBeInTheDocument();
+    //
+    // Several elements mention counties reporting — the metric label, a
+    // panel subtitle — so match the definition-list term exactly and read
+    // the value that belongs to it.
+    const term = screen
+      .getAllByText('Counties reporting')
+      .find((el) => el.tagName === 'DT');
+    expect(term?.parentElement).toHaveTextContent('5');
   });
 
   it('says nothing about suppression when nothing is suppressed', async () => {
@@ -220,8 +227,10 @@ describe('the figures carry their provenance', () => {
     //
     // The donut centre shows the same total, so assert the stat card
     // specifically rather than any 93 on the page.
-    const card = screen.getByText(/confirmed cases/i).closest('div');
-    expect(card).toHaveTextContent('93');
+    const term = screen
+      .getAllByText('Confirmed cases')
+      .find((el) => el.tagName === 'DT');
+    expect(term?.parentElement).toHaveTextContent('93');
   });
 });
 

@@ -22,9 +22,12 @@ import {
   Funnel,
   ChartLegend,
   Donut,
-  Gauge,
   GroupedBarChart,
   SERIES,
+  Panel,
+  MetricStrip,
+  BigStat,
+  ProgressRow,
 } from '@/components/charts';
 
 /**
@@ -293,48 +296,91 @@ export default function MinistryPage() {
         {metric === 'BURDEN' && (
           <>
             {/*
-              A dashboard grid rather than a single column.
+              Laid out as an analytics dashboard.
 
-              Four headline figures, then the county ranking beside the
-              things that qualify it — where the cases are new, and whether
-              the counties reporting them are reporting completely. Reading
-              a burden number without its completeness is how a rise in
-              REPORTING gets announced as a rise in disease.
+              Card titles are bold dark sans with a grey subtitle beneath;
+              figures are large with their label UNDER them. The page used a
+              mono uppercase eyebrow for every heading and put a small grey
+              caption above every number, which gave a card title, a field
+              label and a section marker identical weight — nothing looked
+              more important than anything else, and the eye read four
+              labels before reaching the first figure.
             */}
-            <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard
-                label="Confirmed cases"
-                value={totalCases}
-                caption="Malaria · last 30 days"
-                accentTone="c1"
-              />
-              <StatCard
-                label="First-ever episodes"
-                value={burden.reduce((n, b) => n + b.newCases, 0)}
-                caption="Not a repeat presentation"
-                accentTone="c2"
-              />
-              <StatCard
-                label="Counties reporting"
-                value={burden.length}
-                caption={`of ${countyTotal}`}
-                tone={burden.length < countyTotal / 2 ? 'caution' : 'default'}
-                accentTone="c4"
-              />
-              <StatCard
-                label="Data completeness"
-                value={prov?.completenessPercent ?? 0}
-                unit="%"
-                caption={`${prov?.facilitiesReporting ?? 0} of ${prov?.facilitiesRegistered ?? 0} facilities`}
-                tone={(prov?.completenessPercent ?? 0) < 80 ? 'caution' : 'good'}
-              />
+            <div className="mb-4 grid gap-4 lg:grid-cols-3">
+              <Panel
+                title="Malaria burden"
+                subtitle="Confirmed cases across reporting counties, last 30 days"
+                className="lg:col-span-2"
+              >
+                <MetricStrip
+                  metrics={[
+                    { label: 'Confirmed cases', value: totalCases, tone: 'c1' },
+                    {
+                      label: 'First-ever episodes',
+                      value: burden.reduce((n, b) => n + b.newCases, 0),
+                      tone: 'c2',
+                    },
+                    { label: 'Counties reporting', value: burden.length, tone: 'c4' },
+                    {
+                      label: 'Facilities returning',
+                      value: prov?.facilitiesReporting ?? 0,
+                      tone: 'c6',
+                    },
+                  ]}
+                />
+
+                <div className="mt-5 border-t border-rule-soft pt-4">
+                  <ProgressRow
+                    label="Counties reporting at or above the 80% target"
+                    value={burden.filter((b) => b.completenessPercent >= 80).length}
+                    total={Math.max(1, burden.length)}
+                    tone="c4"
+                  />
+                  <p className="mt-2 text-micro text-ink-faint">
+                    A burden figure from a county below target is not
+                    comparable to one above it — a rise in cases and a rise
+                    in REPORTING look identical without this.
+                  </p>
+                </div>
+              </Panel>
+
+              {/* The reporting picture, beside the burden it qualifies.
+                  Every figure here is about whether the numbers to the left
+                  can be trusted, which is why they share a row. */}
+              <div className="space-y-4">
+                <BigStat
+                  value={prov?.completenessPercent ?? 0}
+                  unit="%"
+                  label={`Data completeness · ${prov?.facilitiesReporting ?? 0} of ${prov?.facilitiesRegistered ?? 0} facilities`}
+                />
+                <Panel title="Coverage" subtitle="Counties this period reaches">
+                  <div className="space-y-3.5">
+                    {/* Named differently from the metric above on purpose:
+                        that one is a count, this is a share of the 47. Two
+                        rows reading "Counties reporting" with different
+                        numbers is worse than either alone. */}
+                    <ProgressRow
+                      label="Share of Kenya's counties"
+                      value={burden.length}
+                      total={countyTotal}
+                      tone="c1"
+                    />
+                    <ProgressRow
+                      label="Counties with cases suppressed"
+                      value={suppressedCounties.length}
+                      total={Math.max(1, burden.length)}
+                      tone="caution"
+                    />
+                  </div>
+                </Panel>
+              </div>
             </div>
 
-            <div className="mb-5 grid gap-4 lg:grid-cols-3">
-              {/* New against repeat. A whole that genuinely sums, which is
-                  the only case a ring is the right shape for. */}
-              <section className="card card-body">
-                <h2 className="eyebrow mb-3">New against repeat presentations</h2>
+            <div className="mb-4 grid gap-4 lg:grid-cols-3">
+              <Panel
+                title="New against repeat"
+                subtitle="A county whose cases are almost all repeats has a treatment problem, not an outbreak"
+              >
                 <Donut
                   centreValue={totalCases.toLocaleString('en-GB')}
                   centreLabel="cases"
@@ -354,62 +400,14 @@ export default function MinistryPage() {
                     },
                   ]}
                 />
-                <p className="mt-3 text-micro text-ink-faint">
-                  A county whose cases are almost all repeats has a treatment
-                  problem, not an outbreak.
-                </p>
-              </section>
+              </Panel>
 
-              {/*
-                National reporting completeness, not a per-county repeat.
-
-                A grid of county gauges duplicated the names in the ranked
-                chart below and in the suppression note, which made the page
-                say "Nairobi" three times in three different meanings. What
-                is NOT already on this screen is how many counties are
-                reporting well enough for their figures to be comparable.
-              */}
-              <section className="card card-body lg:col-span-2">
-                <h2 className="eyebrow mb-3">Reporting completeness</h2>
-                {burden.length === 0 ? (
-                  <p className="text-sm text-ink-faint">No counties reporting.</p>
-                ) : (
-                  <>
-                    {/*
-                      One gauge, and only the figure that is not already on
-                      this screen. The national completeness percentage is a
-                      stat card above and the facility count is in the
-                      provenance block below — repeating either made the
-                      same number appear three times in three shapes.
-                    */}
-                    <div className="mb-4">
-                      <Gauge
-                        label="Counties reporting at or above target"
-                        value={
-                          (burden.filter((b) => b.completenessPercent >= 80).length /
-                            Math.max(1, burden.length)) *
-                          100
-                        }
-                        target={80}
-                        caption={`${burden.filter((b) => b.completenessPercent >= 80).length} of ${burden.length} counties returned data from most of their facilities`}
-                      />
-                    </div>
-                    <p className="text-micro text-ink-faint">
-                      The tick is the 80% national target. A burden figure from
-                      a county below it is not comparable to one above — a
-                      rise in cases and a rise in REPORTING look identical
-                      without this.
-                    </p>
-                  </>
-                )}
-              </section>
             </div>
 
-            <section className="card card-body">
-            <h2 className="eyebrow mb-2">Cases by county · malaria</h2>
-            <p className="mb-2 text-micro text-ink-faint">
-              Select a county for its subcounty breakdown.
-            </p>
+            <Panel
+              title="Cases by county"
+              subtitle="Select a county for its subcounty breakdown"
+            >
             <ul className="mb-4 space-y-1">
               {burden
                 .filter((b) => b.cases > 0)
@@ -534,7 +532,7 @@ export default function MinistryPage() {
               // information harder to find.
               items={[{ swatch: 'hatch', label: 'Withheld for disclosure control' }]}
             />
-            </section>
+            </Panel>
 
             {gaps.length > 0 && (
               <>
@@ -688,58 +686,69 @@ export default function MinistryPage() {
             {workforce.length === 0 ? (
               <p className="text-sm text-ink-faint">No check-ins in this period.</p>
             ) : (
-              <>
-                {(() => {
-                  const total = workforce.reduce((n, w) => n + w.activeClinicians, 0);
-                  const covered = workforce.filter((w) => w.activeClinicians > 0).length;
-                  // A county with nobody working in it is the finding here,
-                  // and it was previously just a short bar in a list.
-                  const empty = countyTotal - covered;
-                  return (
-                    <div className="mb-6 grid gap-3 sm:grid-cols-3">
-                      <StatCard
-                        label="Clinicians working"
-                        value={total}
-                        caption="Checked in during this period"
-                      />
-                      <StatCard
-                        label="Counties covered"
-                        value={covered}
-                        caption={`of ${countyTotal}`}
-                      />
-                      <StatCard
-                        label="Counties with nobody"
+              (() => {
+                const total = workforce.reduce((n, w) => n + w.activeClinicians, 0);
+                const covered = workforce.filter((w) => w.activeClinicians > 0).length;
+                const empty = countyTotal - covered;
+                return (
+                  <>
+                    <div className="mb-4 grid gap-4 lg:grid-cols-3">
+                      <Panel
+                        title="Clinical workforce"
+                        subtitle="Derived from actual check-ins — who is working, not who is on an establishment list"
+                        className="lg:col-span-2"
+                      >
+                        <MetricStrip
+                          metrics={[
+                            { label: 'Clinicians working', value: total, tone: 'c1' },
+                            { label: 'Counties covered', value: covered, tone: 'c4' },
+                            { label: 'Counties with nobody', value: empty, tone: 'critical' },
+                            {
+                              label: 'Average per county',
+                              value: covered ? Math.round(total / covered) : 0,
+                              tone: 'c6',
+                            },
+                          ]}
+                        />
+                        <div className="mt-5 border-t border-rule-soft pt-4">
+                          <ProgressRow
+                            label="Counties with at least one clinician working"
+                            value={covered}
+                            total={countyTotal}
+                            tone="c4"
+                          />
+                        </div>
+                      </Panel>
+
+                      <BigStat
                         value={empty}
-                        caption="No clinician checked in at all"
-                        tone={empty > 0 ? 'critical' : 'good'}
+                        label={`Counties where nobody checked in · of ${countyTotal}`}
                       />
                     </div>
-                  );
-                })()}
 
-                <h2 className="eyebrow mb-3">Active clinicians by county</h2>
-                <BarChart
-                  data={[...workforce]
-                    .sort((a, b) => b.activeClinicians - a.activeClinicians)
-                    .map((w) => ({
-                      key: w.countyId,
-                      label: nameOf(w.countyId),
-                      value: w.activeClinicians,
-                      emphasis: w.activeClinicians === 0,
-                    }))}
-                />
-                <ChartLegend
-                  items={[
-                    { swatch: 'gov', label: 'Clinicians checked in' },
-                    { swatch: 'caution', label: 'Nobody working in this county' },
-                  ]}
-                />
-              </>
+                    <Panel
+                      title="Active clinicians by county"
+                      subtitle="Counties with nobody working are flagged"
+                    >
+                      <BarChart
+                        data={[...workforce]
+                          .sort((a, b) => b.activeClinicians - a.activeClinicians)
+                          .map((w, i) => ({
+                            key: w.countyId,
+                            label: nameOf(w.countyId),
+                            value: w.activeClinicians,
+                            tone: SERIES[i % SERIES.length],
+                            emphasis: w.activeClinicians === 0,
+                          }))}
+                      />
+                      <ChartLegend
+                        items={[{ swatch: 'caution', label: 'Nobody working in this county' }]}
+                      />
+                    </Panel>
+                  </>
+                );
+              })()
             )}
-            <p className="mt-4 max-w-prose text-micro text-ink-faint">
-              Derived from actual check-ins — who is working, not who is on an
-              establishment list.
-            </p>
           </>
         )}
 
