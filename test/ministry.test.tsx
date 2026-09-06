@@ -72,6 +72,13 @@ const PROVENANCE = {
 const ministryStub = {
   counties: vi.fn(async () => COUNTIES),
   burden: vi.fn(async () => BURDEN),
+  /* The daily series behind the trend chart. Two points, so the chart
+     draws rather than showing its not-enough-periods state. */
+  burdenTrend: vi.fn(async () => [
+    { date: '2026-09-01', cases: 40, newCases: 30 },
+    { date: '2026-09-02', cases: 53, newCases: 35 },
+  ]),
+  payerMix: vi.fn(async () => []),
   subcounty: vi.fn(
     async (): Promise<Array<{ subcountyId: string; cases: number; suppressed: number }>> => [],
   ),

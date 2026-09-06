@@ -23,6 +23,7 @@ import {
   ChartLegend,
   Donut,
   GroupedBarChart,
+  LineChart,
   SERIES,
   Panel,
   MetricStrip,
@@ -81,6 +82,9 @@ export default function MinistryPage() {
   >([]);
   const [gaps, setGaps] = useState<Awaited<ReturnType<typeof ministry.careGaps>>>([]);
   const [prov, setProv] = useState<Provenance | null>(null);
+  const [trend, setTrend] = useState<
+    Awaited<ReturnType<typeof ministry.burdenTrend>>
+  >([]);
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -159,8 +163,9 @@ export default function MinistryPage() {
           throw err;
         };
 
-        const [c, b, r, w, s, g, p] = await Promise.all([
+        const [c, t, b, r, w, s, g, p] = await Promise.all([
           ministry.counties(),
+          ministry.burdenTrend().catch(allowEmpty([])),
           ministry.burden('1F41.0'),
           ministry.referralClosure().catch(allowEmpty([])),
           ministry.workforce().catch(allowEmpty([])),
@@ -170,6 +175,7 @@ export default function MinistryPage() {
         ]);
         if (cancelled) return;
         setCounties(c);
+        setTrend(t);
         setBurden(b);
         setClosure(r);
         setWorkforce(w);
@@ -223,25 +229,23 @@ export default function MinistryPage() {
   return (
     <div className="min-h-screen bg-surface-sunken">
       {/*
-        An admin console rather than a report page.
+        A top navigation bar, not a sidebar.
 
-        The metrics were pills across the top of a centred column, which
-        reads as a document somebody published. A Ministry analyst is
-        working a console: they switch between views repeatedly, and the
-        navigation should stay put while the content changes under it. The
-        rail also gives the scope and the de-identified badge a permanent
-        home, which matters because what this screen CANNOT do — reach an
-        individual record — is the point of its design.
+        The rail worked but ate 240px of a screen whose whole job is showing
+        charts wide. Putting the views in the header returns that width to
+        the content and matches how a reader scans a report: masthead,
+        title, tabs, then the figures.
       */}
       <header className="border-b border-rule bg-surface">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex items-baseline gap-3">
-            <h1 className="font-serif text-lg font-medium">Ministry of Health</h1>
-            <span className="font-mono text-micro text-ink-faint">
-              National Health Portal
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-8 gap-y-3 px-4 py-3 sm:px-6">
+          <span className="font-serif text-lg font-medium">Ministry of Health</span>
+          <span className="hidden font-mono text-micro text-ink-faint sm:inline">
+            National Health Portal
+          </span>
+          <div className="ml-auto flex items-center gap-3">
+            <span className="hidden text-sm text-ink-faint md:inline">
+              Analyst · National scope
             </span>
-          </div>
-          <div className="flex items-center gap-3">
             <Link href="/ministry/admin" className="btn btn-secondary">
               Administration
             </Link>
@@ -250,48 +254,73 @@ export default function MinistryPage() {
         </div>
       </header>
 
-      <div className="lg:flex">
-        {/*
-          The rail. Horizontal on a phone, fixed beside the content from
-          `lg` up — a console's navigation should not move when the view
-          changes underneath it.
-        */}
-        <nav className="border-b border-rule bg-surface px-4 py-3 sm:px-6 lg:min-h-[calc(100vh-57px)] lg:w-60 lg:shrink-0 lg:border-b-0 lg:border-r lg:px-3">
-          <p className="eyebrow mb-2 hidden lg:block">Views</p>
-          <div className="flex flex-wrap gap-1.5 lg:flex-col lg:gap-0.5">
-            {(Object.keys(METRIC_LABELS) as Metric[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMetric(m)}
-                className={`inline-flex min-h-11 items-center rounded-md px-3 text-sm lg:w-full lg:justify-start ${
-                  metric === m
-                    ? 'bg-gov font-semibold text-ongov'
-                    : 'text-ink-soft hover:bg-surface-alt'
-                }`}
-              >
-                {METRIC_LABELS[m]}
-              </button>
-            ))}
+      <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
+        {/* The page header: what this screen is, and the period it covers. */}
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="font-serif text-2xl font-medium tracking-tight">
+              National health statistics
+            </h1>
+            <p className="mt-0.5 text-sm text-ink-faint">
+              De-identified aggregates. No path from this screen to an
+              individual record.
+            </p>
           </div>
+          {prov && (
+            <dl className="flex flex-wrap gap-x-8 gap-y-2">
+              <div>
+                <dt className="eyebrow mb-0.5">Period from</dt>
+                <dd className="text-sm font-semibold tabular-nums">
+                  {new Date(prov.periodFrom).toLocaleDateString('en-GB', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </dd>
+              </div>
+              <div>
+                <dt className="eyebrow mb-0.5">Period to</dt>
+                <dd className="text-sm font-semibold tabular-nums">
+                  {new Date(prov.periodTo).toLocaleDateString('en-GB', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </dd>
+              </div>
+              <div>
+                <dt className="eyebrow mb-0.5">Facilities reporting</dt>
+                <dd className="text-sm font-semibold tabular-nums">
+                  {prov.facilitiesReporting} of {prov.facilitiesRegistered}
+                </dd>
+              </div>
+            </dl>
+          )}
+        </div>
 
-          {/*
-            Who is looking, and how far they can see. Permanent rather than
-            a line in a header, because geographic scope decides what every
-            number on this screen means.
-          */}
-          <div className="mt-4 hidden border-t border-rule pt-4 lg:block">
-            <p className="eyebrow mb-1">Signed in as</p>
-            <p className="text-sm font-semibold">Analyst</p>
-            <p className="font-mono text-micro text-ink-faint">National scope</p>
-          </div>
+        {/* Underlined tabs, the reference's navigation for switching views. */}
+        <nav className="mb-5 flex flex-wrap items-center gap-x-1 border-b border-rule">
+          {(Object.keys(METRIC_LABELS) as Metric[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMetric(m)}
+              aria-current={metric === m ? 'page' : undefined}
+              className={`-mb-px border-b-2 px-4 py-2.5 text-sm ${
+                metric === m
+                  ? 'border-gov font-semibold text-gov'
+                  : 'border-transparent text-ink-faint hover:text-ink-soft'
+              }`}
+            >
+              {METRIC_LABELS[m]}
+            </button>
+          ))}
         </nav>
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
-          {error && (
-            <p className="mb-4 rounded-md border border-critical/30 bg-critical-soft px-3 py-2.5 text-sm text-critical">
-              {error}
-            </p>
-          )}
+        {error && (
+          <p className="mb-4 rounded-md border border-critical/30 bg-critical-soft px-3 py-2.5 text-sm text-critical">
+            {error}
+          </p>
+        )}
 
         {metric === 'BURDEN' && (
           <>
@@ -307,9 +336,15 @@ export default function MinistryPage() {
               labels before reaching the first figure.
             */}
             <div className="mb-4 grid gap-4 lg:grid-cols-3">
+              {/*
+                The reference's shape: the metrics and the chart they
+                describe live in ONE panel, with the smaller figures stacked
+                beside it. Separating a strip of numbers from the chart that
+                explains them makes a reader work to connect the two.
+              */}
               <Panel
                 title="Malaria burden"
-                subtitle="Confirmed cases across reporting counties, last 30 days"
+                subtitle="Confirmed cases across reporting counties"
                 className="lg:col-span-2"
               >
                 <MetricStrip
@@ -329,24 +364,30 @@ export default function MinistryPage() {
                   ]}
                 />
 
-                <div className="mt-5 border-t border-rule-soft pt-4">
-                  <ProgressRow
-                    label="Counties reporting at or above the 80% target"
-                    value={burden.filter((b) => b.completenessPercent >= 80).length}
-                    total={Math.max(1, burden.length)}
-                    tone="c4"
+                <div className="mt-5">
+                  <LineChart
+                    periods={trend.map((t) =>
+                      new Date(t.date).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                      }),
+                    )}
+                    series={[
+                      {
+                        label: 'All confirmed',
+                        tone: 'c1',
+                        points: trend.map((t) => t.cases),
+                      },
+                      {
+                        label: 'First-ever episode',
+                        tone: 'c3',
+                        points: trend.map((t) => t.newCases),
+                      },
+                    ]}
                   />
-                  <p className="mt-2 text-micro text-ink-faint">
-                    A burden figure from a county below target is not
-                    comparable to one above it — a rise in cases and a rise
-                    in REPORTING look identical without this.
-                  </p>
                 </div>
               </Panel>
 
-              {/* The reporting picture, beside the burden it qualifies.
-                  Every figure here is about whether the numbers to the left
-                  can be trusted, which is why they share a row. */}
               <div className="space-y-4">
                 <BigStat
                   value={prov?.completenessPercent ?? 0}
@@ -355,10 +396,6 @@ export default function MinistryPage() {
                 />
                 <Panel title="Coverage" subtitle="Counties this period reaches">
                   <div className="space-y-3.5">
-                    {/* Named differently from the metric above on purpose:
-                        that one is a count, this is a share of the 47. Two
-                        rows reading "Counties reporting" with different
-                        numbers is worse than either alone. */}
                     <ProgressRow
                       label="Share of Kenya's counties"
                       value={burden.length}
@@ -913,8 +950,7 @@ export default function MinistryPage() {
               <p className="text-micro text-ink-faint">Loading…</p>
             )}
           </div>
-        </main>
-      </div>
+      </main>
     </div>
   );
 }

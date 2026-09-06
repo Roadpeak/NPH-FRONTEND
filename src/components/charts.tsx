@@ -839,16 +839,25 @@ export function LineChart({
     );
   }
 
-  const w = 320;
-  const padL = 4;
-  const padR = 4;
+  // Wide relative to `height`, so the chart is a band rather than a square.
+  const w = 900;
+  const padL = 26;
+  const padR = 8;
   const hi = Math.max(1, ...series.flatMap((s) => s.points));
   const x = (i: number) => padL + (i / (periods.length - 1)) * (w - padL - padR);
   const y = (v: number) => height - 18 - (v / hi) * (height - 30);
 
   return (
     <figure>
-      <svg viewBox={`0 0 ${w} ${height}`} className="w-full" role="img"
+      {/* The viewBox is deliberately wide relative to its height. `w-full`
+          scales the whole box, so a 320x160 viewBox became 750px tall at
+          desktop width and pushed everything below it off screen.
+          preserveAspectRatio is left at its default, because "none" would
+          stretch the axis labels along with the drawing. */}
+      <svg
+        viewBox={`0 0 ${w} ${height}`}
+        className="w-full"
+        role="img"
         aria-label={series
           .map((s) => `${s.label}: ${s.points.join(', ')}`)
           .join('; ')}

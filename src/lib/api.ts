@@ -1079,6 +1079,14 @@ export const ministry = {
       }>
     >('/analytics/referral-closure'),
 
+  burdenTrend: (icd11Code?: string) =>
+    api.get<Array<{ date: string; cases: number; newCases: number }>>(
+      `/analytics/burden-trend${icd11Code ? `?icd11Code=${icd11Code}` : ''}`,
+    ),
+
+  payerMix: () =>
+    api.get<Array<{ payer: string; arrivals: number }>>('/analytics/payer-mix'),
+
   workforce: () =>
     api.get<Array<{ countyId: string; activeClinicians: number }>>(
       '/analytics/workforce',
