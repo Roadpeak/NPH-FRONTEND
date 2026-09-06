@@ -100,32 +100,109 @@ export function PortalShell({
   );
 }
 
-/** The one input style, so a field looks identical in all four portals. */
+/**
+ * One labelled field.
+ *
+ * `size` sets how wide the input may grow. A form of identically full-width
+ * boxes tells a clerk nothing, and at desktop width an eight-character MFL
+ * code was given the same 590px as a facility name — so the eye has to read
+ * every label to know what is wanted. Sizing to the expected input is an
+ * ordinary government-forms convention and it is the difference between
+ * scanning a form and reading it.
+ *
+ * The width is applied to a wrapper rather than the input, so a field can
+ * sit in a two-column grid and still be narrow within its column.
+ */
 export function Field({
   id,
   label,
   hint,
+  size = 'full',
+  className = '',
   children,
 }: {
   id: string;
   label: string;
   hint?: string;
+  /** code: an MFL number or licence. short: a date, phone or coordinate. */
+  size?: 'full' | 'short' | 'code';
+  className?: string;
   children: React.ReactNode;
 }) {
+  const width =
+    size === 'code' ? 'max-w-[16rem]' : size === 'short' ? 'max-w-[20rem]' : '';
+  /*
+   * Fields space themselves by default.
+   *
+   * Inside a FormGrid the grid owns the gap, and a margin on top of it
+   * would double the spacing — so a grid passes `className="mb-0"`, which
+   * lands after this and wins.
+   */
+  /*
+   * `flex-col` with the hint last and `mt-auto` on nothing in particular:
+   * the input sits directly under its label, and a hint under one field in
+   * a two-column row no longer pushes the next ROW down — it grows into the
+   * cell's own space instead. Rows stayed aligned before only by accident,
+   * because no field in a pair had a hint.
+   */
   return (
-    <div className="mb-4">
+    <div className={`mb-4 flex flex-col ${className}`}>
       <label htmlFor={id} className="eyebrow mb-1.5 block">
         {label}
       </label>
-      {children}
+      <div className={width}>{children}</div>
       {hint && <p className="mt-1 text-micro text-ink-faint">{hint}</p>}
     </div>
   );
 }
 
+/**
+ * The one input style, so a field looks identical in all four portals.
+ *
+ * min-h-11 is 44px. Below that a control is unreliable for a nurse wearing
+ * gloves or a receptionist working fast on a shared terminal, and most of
+ * this site's inputs were shorter than that before it was set here.
+ */
 export const inputClass =
-  'w-full rounded-md border-2 border-rule bg-surface px-3 py-2.5 text-base ' +
+  'min-h-11 w-full rounded-md border-2 border-rule bg-surface px-3 py-2.5 text-base ' +
   'placeholder:text-ink-faint focus:border-gov focus:outline-none';
+
+/** A code or number. Monospaced, so digits line up and a typo is visible. */
+export const codeInputClass = `${inputClass} font-mono tabular-nums tracking-[0.04em]`;
+
+/**
+ * Two columns from `sm` up, one below.
+ *
+ * Long forms were a single column at every width, so registering a facility
+ * meant scrolling a wall of boxes. Fields that need the full width opt out
+ * with `sm:col-span-2`.
+ */
+export function FormGrid({ children }: { children: React.ReactNode }) {
+  // `[&>*]:mb-0` strips the Field default margin: the grid gap owns the
+  // spacing here, and both together would leave the rows drifting apart.
+  return (
+    <div className="mb-4 grid items-start gap-x-5 gap-y-4 sm:grid-cols-2 [&>*]:mb-0">{children}</div>
+  );
+}
+
+/** A titled group of fields, so a long form reads as a few short ones. */
+export function FieldSet({
+  legend,
+  hint,
+  children,
+}: {
+  legend: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <fieldset className="mb-7">
+      <legend className="mb-1 font-serif text-lg font-medium">{legend}</legend>
+      {hint && <p className="mb-3 text-sm text-ink-soft">{hint}</p>}
+      {children}
+    </fieldset>
+  );
+}
 
 export function SubmitButton({
   busy,
@@ -140,7 +217,7 @@ export function SubmitButton({
     <button
       type="submit"
       disabled={busy || disabled}
-      className="w-full rounded-md bg-gov px-4 py-2.5 font-semibold text-surface disabled:opacity-60"
+      className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-gov px-5 font-semibold text-surface transition-colors hover:bg-gov/90 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {children}
     </button>
@@ -155,6 +232,23 @@ export function ErrorNote({ message }: { message: string | null }) {
       className="mt-4 rounded-md border border-critical/30 bg-critical-soft px-3 py-2 text-sm text-critical"
     >
       {message}
+    </p>
+  );
+}
+
+/**
+ * "What you do here is recorded."
+ *
+ * Stated the same way on every screen that writes to a national health
+ * record. It appeared on the sign-in page and nowhere else, which made it
+ * read as a one-off reassurance rather than a standing fact about the
+ * system.
+ */
+export function RecordedNote({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mt-4 flex items-start gap-2 font-mono text-micro text-ink-faint">
+      <span aria-hidden="true">&#9679;</span>
+      <span>{children}</span>
     </p>
   );
 }

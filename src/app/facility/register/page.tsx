@@ -11,7 +11,16 @@ import {
   type SubcountyOption,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
-import { PortalShell, Field, inputClass, SubmitButton, ErrorNote } from '@/components/PortalShell';
+import {
+  PortalShell,
+  Field,
+  FormGrid,
+  inputClass,
+  codeInputClass,
+  SubmitButton,
+  ErrorNote,
+  RecordedNote,
+} from '@/components/PortalShell';
 
 /**
  * Facility registration.
@@ -316,9 +325,17 @@ export default function FacilityRegisterPage() {
       }
     >
       <form onSubmit={submit}>
+        {/*
+          Section headings, so a long form reads as three short ones.
+          A registrar filling twenty of these should be able to see where
+          they are without reading every label.
+        */}
+        <p className="eyebrow mb-3 border-b border-rule pb-1.5">The facility</p>
+
         <Field
           id="mflCode"
           label="MFL code"
+          size="code"
           hint="From the Kenya Master Health Facility List."
         >
           <input
@@ -326,7 +343,7 @@ export default function FacilityRegisterPage() {
             required
             value={mflCode}
             onChange={(e) => setMflCode(e.target.value)}
-            className={`${inputClass} font-mono`}
+            className={codeInputClass}
           />
         </Field>
 
@@ -340,7 +357,7 @@ export default function FacilityRegisterPage() {
           />
         </Field>
 
-        <div className="grid gap-x-4 sm:grid-cols-2">
+        <FormGrid>
           <Field
             id="kephLevel"
             label="KEPH level"
@@ -378,12 +395,12 @@ export default function FacilityRegisterPage() {
               ))}
             </select>
           </Field>
-        </div>
+        </FormGrid>
 
         {chosen && (
           /* Stated at the point of choosing, because it cannot be changed
              casually afterwards and it governs every future hire. */
-          <p className="mb-4 rounded-md border border-rule bg-surface-alt px-3 py-2.5 text-sm text-ink-soft">
+          <p className="card-note mb-4">
             {chosen.isPublic ? (
               <>
                 <span className="font-semibold text-ink">
@@ -425,8 +442,8 @@ export default function FacilityRegisterPage() {
               appear on the certificates — no documents are uploaded.
             </p>
 
-            <div className="grid gap-x-4 sm:grid-cols-2">
-              <Field id="businessRegNo" label="Business registration number">
+            <FormGrid>
+              <Field id="businessRegNo" label="Business registration number" size="code">
                 <input
                   id="businessRegNo"
                   required
@@ -438,7 +455,7 @@ export default function FacilityRegisterPage() {
                 />
               </Field>
 
-              <Field id="kraPin" label="KRA PIN">
+              <Field id="kraPin" label="KRA PIN" size="code">
                 <input
                   id="kraPin"
                   value={kraPin}
@@ -471,9 +488,9 @@ export default function FacilityRegisterPage() {
                   className={inputClass}
                 />
               </Field>
-            </div>
+            </FormGrid>
 
-            <Field id="ownerNationalId" label="Owner's National ID">
+            <Field id="ownerNationalId" label="Owner's National ID" size="code">
               <input
                 id="ownerNationalId"
                 inputMode="numeric"
@@ -618,7 +635,9 @@ export default function FacilityRegisterPage() {
           </fieldset>
         )}
 
-        <div className="grid gap-x-4 sm:grid-cols-2">
+        <p className="eyebrow mb-3 mt-7 border-b border-rule pb-1.5">Where it is</p>
+
+        <FormGrid>
           <Field id="countyId" label="County">
             <select
               id="countyId"
@@ -656,7 +675,7 @@ export default function FacilityRegisterPage() {
               ))}
             </select>
           </Field>
-        </div>
+        </FormGrid>
 
         <Field
           id="locality"
@@ -675,10 +694,14 @@ export default function FacilityRegisterPage() {
             ask about the ownership evidence before approving, and a referral
             has to reach the place it names — neither is served by the
             personal number of whoever filled this form in. */}
-        <div className="grid gap-x-4 sm:grid-cols-2">
+        <p className="eyebrow mb-3 mt-7 border-b border-rule pb-1.5">
+          How to reach it
+        </p>
+
+        <FormGrid>
           <Field
             id="phone"
-            label="Facility phone number"
+            label="Facility phone number" size="short"
             /* Says what it is NOT. Two phone numbers on one form invites the
                reading that this one is the facility's login — it is not, and
                the facility has no login at all. A registrar rings this about
@@ -696,7 +719,7 @@ export default function FacilityRegisterPage() {
             />
           </Field>
 
-          <Field id="email" label="Facility email" hint="Optional.">
+          <Field id="email" label="Facility email" size="full" hint="Optional.">
             <input
               id="email"
               type="email"
@@ -705,14 +728,14 @@ export default function FacilityRegisterPage() {
               className={inputClass}
             />
           </Field>
-        </div>
+        </FormGrid>
 
         <div className="mb-2 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={useMyLocation}
             disabled={locating}
-            className="rounded-md border border-gov px-3 py-1.5 text-sm font-semibold text-gov disabled:opacity-60"
+            className="btn border border-gov text-gov hover:bg-gov-soft"
           >
             {locating ? 'Locating…' : 'Use my current location'}
           </button>
@@ -734,8 +757,8 @@ export default function FacilityRegisterPage() {
           </p>
         )}
 
-        <div className="grid gap-x-4 sm:grid-cols-2">
-          <Field id="latitude" label="Latitude">
+        <FormGrid>
+          <Field id="latitude" label="Latitude" size="short">
             <input
               id="latitude"
               type="number"
@@ -748,7 +771,7 @@ export default function FacilityRegisterPage() {
             />
           </Field>
 
-          <Field id="longitude" label="Longitude">
+          <Field id="longitude" label="Longitude" size="short">
             <input
               id="longitude"
               type="number"
@@ -760,7 +783,7 @@ export default function FacilityRegisterPage() {
               className={`${inputClass} font-mono`}
             />
           </Field>
-        </div>
+        </FormGrid>
 
         <p className="mb-4 max-w-prose text-micro text-ink-faint">
           {/* Not decoration: these coordinates are what routes a patient here

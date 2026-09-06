@@ -150,4 +150,132 @@
   .chip-gov {
     @apply bg-gov-soft text-gov;
   }
+
+  /* ------------------------------------------------------------ surfaces */
+
+  /**
+   * A bordered panel.
+   *
+   * There were thirty distinct spellings of this before it existed — same
+   * component, different padding on every screen, which nobody chose. The
+   * variants below are the only three that were ever meaningfully
+   * different.
+   */
+  .card {
+    @apply rounded-lg border border-rule bg-surface;
+  }
+  /** Standard padding. Tighter on a phone, where the border eats the width. */
+  .card-body {
+    @apply p-4 sm:p-5;
+  }
+  /** A row in a list of records — denser, because there are many. */
+  .card-row {
+    @apply rounded-md border border-rule bg-surface px-3 py-2.5;
+  }
+  /** Recessed, for a block that explains rather than holds input. */
+  .card-note {
+    @apply rounded-md border border-rule bg-surface-alt px-4 py-3 text-sm text-ink-soft;
+  }
+
+  /* ------------------------------------------------------------- buttons */
+
+  /**
+   * Every button, whatever its colour.
+   *
+   * min-h-11 is 44px, the smallest reliable touch target. Fifteen of the
+   * fifty-nine buttons on this site had one before this class existed —
+   * which meant three quarters of them were hard to hit for a nurse wearing
+   * gloves or a receptionist working fast on a shared terminal.
+   */
+  .btn {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4
+           text-sm font-semibold transition-colors
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-gov px-5 text-white hover:bg-gov/90;
+  }
+  .btn-secondary {
+    @apply btn border border-rule bg-surface text-ink-soft hover:bg-surface-alt;
+  }
+  /** Destructive, and deliberately not red until hover: a delete control
+      that shouts at rest makes every screen look like an emergency. */
+  .btn-danger {
+    @apply btn border border-rule bg-surface text-ink-soft hover:border-critical hover:text-critical;
+  }
+  /** A text button. Still 44px tall — it is no easier to tap for being flat. */
+  .btn-quiet {
+    @apply btn px-2 font-normal text-ink-soft underline-offset-2 hover:text-gov hover:underline;
+  }
+
+  /* -------------------------------------------------------------- fields */
+
+  /**
+   * Input width carries meaning.
+   *
+   * A form of identically full-width boxes tells a clerk nothing, and at
+   * desktop width an eight-character MFL code got the same 590px as a
+   * facility name. Sizing to the expected input is a government-forms
+   * convention, and it is the difference between scanning a form and
+   * reading it.
+   */
+  .input {
+    @apply min-h-11 w-full rounded-md border border-rule bg-surface px-3 text-sm
+           text-ink placeholder:text-ink-faint;
+  }
+  /** A code, a number, a licence: short and monospaced so digits line up. */
+  .input-code {
+    @apply input max-w-[16rem] font-mono tabular-nums;
+  }
+  /** A date, a phone number, a coordinate. */
+  .input-short {
+    @apply input max-w-[20rem];
+  }
+  .select {
+    @apply input pr-8;
+  }
+  .textarea {
+    @apply w-full rounded-md border border-rule bg-surface px-3 py-2 text-sm text-ink
+           placeholder:text-ink-faint;
+  }
+
+  /**
+   * Two columns from `sm` up, one below.
+   *
+   * Long forms were a single column at every width, so a facility
+   * registration was a wall of boxes that a clerk doing twenty of them
+   * scrolled through constantly.
+   */
+  .form-grid {
+    @apply grid gap-x-5 gap-y-4 sm:grid-cols-2;
+  }
+  /** A field that should keep the full width inside a form-grid. */
+  .form-wide {
+    @apply sm:col-span-2;
+  }
+
+  /* --------------------------------------------------------- sensitivity */
+
+  /**
+   * A restricted record — HIV, mental health, reproductive, substance use.
+   *
+   * These carry a real risk of harm if read by the wrong person or over a
+   * shoulder, and until now they rendered exactly like everything else. The
+   * left rule is deliberate: it survives greyscale, colour blindness and a
+   * bad clinic monitor, none of which a hue alone does.
+   */
+  .restricted {
+    @apply border-l-4 border-l-caution bg-caution-soft/40;
+  }
+
+  /**
+   * "This is recorded."
+   *
+   * Every screen that writes to a national health record should say so the
+   * same way. It appeared on the sign-in page and nowhere else, which made
+   * it read as a one-off reassurance rather than a standing fact.
+   */
+  .recorded-note {
+    @apply flex items-start gap-2 font-mono text-micro text-ink-faint;
+  }
 }
