@@ -64,13 +64,13 @@ export default function Landing() {
       <h2 className="eyebrow mb-3">Staff portals</h2>
       <ul className="grid gap-2 text-sm sm:grid-cols-3">
         <li className="rounded-md border border-rule bg-surface-alt px-4 py-3">
-          <Link href="/worker" className="font-semibold text-gov">
+          <Link href="/worker" className="link">
             Health workers
           </Link>
           <p className="font-mono text-micro text-ink-faint">/worker</p>
         </li>
         <li className="rounded-md border border-rule bg-surface-alt px-4 py-3">
-          <Link href="/facility" className="font-semibold text-gov">
+          <Link href="/facility" className="link">
             Health facilities
           </Link>
           <p className="font-mono text-micro text-ink-faint">/facility</p>
@@ -86,7 +86,7 @@ export default function Landing() {
           <Link
             href="/ministry/welcome"
             rel="nofollow"
-            className="font-semibold text-gov"
+            className="link"
           >
             Ministry of Health
           </Link>

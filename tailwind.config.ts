@@ -33,6 +33,9 @@ const config: Config = {
         gov: {
           DEFAULT: 'rgb(var(--gov) / <alpha-value>)',
           soft: 'rgb(var(--gov-soft) / <alpha-value>)',
+          /* The Ministry's royal blue — the second of its two official
+             blues. See --gov-bright in globals.css. */
+          bright: 'rgb(var(--gov-bright) / <alpha-value>)',
         },
         /**
          * What to write ON solid gov.

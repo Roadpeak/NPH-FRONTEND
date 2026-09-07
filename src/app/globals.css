@@ -29,6 +29,17 @@
        two places this appears solid, and both need white text on them —
        13.4:1, comfortably past AA. */
     --gov: 10 48 84;
+    /*
+     * The Ministry of Health's own royal blue, sampled from health.go.ke.
+     *
+     * The Ministry site runs two blues — a deep one for its masthead strip
+     * and this brighter one for its navigation — and we had only the deep
+     * one. Adding it keeps the portal recognisably part of the same estate
+     * rather than a lookalike.
+     *
+     * White on it is 6.7:1, comfortably past AA, so it can carry text.
+     */
+    --gov-bright: 64 84 178;
     /* The pale tint, for backgrounds that carry dark text. */
     --gov-soft: 232 240 247;
     /* What to write ON solid --gov. It has to be a token, not a hardcoded
@@ -85,6 +96,7 @@
       --rule-soft: 27 38 50;
 
       --gov: 125 184 232;
+      --gov-bright: 138 156 235;
       --gov-soft: 20 41 58;
       --on-gov: 11 18 25;
 
@@ -121,6 +133,7 @@
     --rule-soft: 27 38 50;
 
     --gov: 125 184 232;
+    --gov-bright: 138 156 235;
     --gov-soft: 20 41 58;
     --on-gov: 11 18 25;
 
@@ -222,6 +235,20 @@
   /** Recessed, for a block that explains rather than holds input. */
   .card-note {
     @apply rounded-md border border-rule bg-surface-alt px-4 py-3 text-sm text-ink-soft;
+  }
+
+  /* --------------------------------------------------------------- links */
+
+  /**
+   * A link inside body text.
+   *
+   * The Ministry's own site uses its deep blue for structure — mastheads,
+   * navigation bars — and the brighter royal blue for things you click.
+   * Following that keeps the two blues meaning different things rather
+   * than being two shades of the same one.
+   */
+  .link {
+    @apply font-semibold text-gov-bright underline-offset-2 hover:underline;
   }
 
   /* ------------------------------------------------------------- buttons */
