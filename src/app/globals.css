@@ -32,14 +32,14 @@
     /*
      * The Ministry of Health's own royal blue, sampled from health.go.ke.
      *
-     * The Ministry site runs two blues — a deep one for its masthead strip
-     * and this brighter one for its navigation — and we had only the deep
-     * one. Adding it keeps the portal recognisably part of the same estate
+     * The Ministry site runs two blues, and we had only the deeper one.
+     * Adding this keeps the portal recognisably part of the same estate
      * rather than a lookalike.
      *
-     * White on it is 6.7:1, comfortably past AA, so it can carry text.
+     * #15428D. White on it is 9.6:1, comfortably past AA, so it can carry
+     * text as well as fill a panel.
      */
-    --gov-bright: 64 84 178;
+    --gov-bright: 21 66 141;
     /* The pale tint, for backgrounds that carry dark text. */
     --gov-soft: 232 240 247;
     /* What to write ON solid --gov. It has to be a token, not a hardcoded
@@ -96,7 +96,7 @@
       --rule-soft: 27 38 50;
 
       --gov: 125 184 232;
-      --gov-bright: 138 156 235;
+      --gov-bright: 127 168 222;
       --gov-soft: 20 41 58;
       --on-gov: 11 18 25;
 
@@ -133,7 +133,7 @@
     --rule-soft: 27 38 50;
 
     --gov: 125 184 232;
-    --gov-bright: 138 156 235;
+    --gov-bright: 127 168 222;
     --gov-soft: 20 41 58;
     --on-gov: 11 18 25;
 

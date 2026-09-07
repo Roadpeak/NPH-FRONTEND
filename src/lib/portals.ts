@@ -29,6 +29,14 @@ export interface Portal {
    * person arriving needs to recognise in one glance.
    */
   welcomeName: string;
+  /**
+   * A photograph for the welcome hero.
+   *
+   * Absent for the Ministry: its portal opens on national statistics, and a
+   * stock clinical photograph on that door would misdescribe what is behind
+   * it.
+   */
+  image?: string;
   /** One line, for the chooser. Says what you can do, not what you are. */
   blurb: string;
   blurbSw: string;
@@ -45,6 +53,7 @@ export const PORTALS: Record<PortalId, Portal> = {
   citizen: {
     id: 'citizen',
     welcomeName: 'Citizen Portal',
+    image: '/img/portals/citizen.jpg',
     name: 'Citizens',
     nameSw: 'Wananchi',
     blurb: 'See your health record, your visits, and who has opened it.',
@@ -58,6 +67,7 @@ export const PORTALS: Record<PortalId, Portal> = {
   worker: {
     id: 'worker',
     welcomeName: 'Health Workers Portal',
+    image: '/img/portals/worker.jpg',
     name: 'Health workers',
     nameSw: 'Wahudumu wa afya',
     blurb: 'Record encounters, prescribe, and read the patients you treat.',
@@ -71,6 +81,7 @@ export const PORTALS: Record<PortalId, Portal> = {
   facility: {
     id: 'facility',
     welcomeName: 'Health Facility Portal',
+    image: '/img/portals/facility.jpg',
     name: 'Health facilities',
     nameSw: 'Vituo vya afya',
     blurb: 'Register a facility, manage its staff and its services.',

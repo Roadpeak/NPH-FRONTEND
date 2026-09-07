@@ -116,59 +116,109 @@ export function PortalWelcome({
       <PortalHeader portal={portal} />
 
       <main className="flex-1">
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-12 sm:px-6 lg:grid-cols-2 lg:py-16">
-          {/* --- the promise, left --- */}
-          <div>
-            <p className="eyebrow mb-3">Republic of Kenya · Ministry of Health</p>
-            <h2 className="mb-4 max-w-prose font-serif text-3xl font-medium leading-tight tracking-tight sm:text-4xl">
-              One health record that follows the person, not the building.
-            </h2>
-            <p className="mb-2 max-w-prose text-ink-soft">{blurb}</p>
-            <p className="max-w-prose text-sm text-ink-faint">{blurbSw}</p>
-          </div>
-
-          {/* --- the welcome, right --- */}
-          <div className="lg:pl-10">
-            {/* The vertical rules above and below the wordmark are SHA's
-                device: they frame the name without boxing it in. Centred on
-                the block they belong to, not on the column. */}
-            <div className="flex flex-col items-center">
-              <div className="h-14 w-px bg-rule" aria-hidden="true" />
-
-              <p className="mt-6 text-center font-serif text-3xl font-normal leading-none tracking-tight text-gov sm:text-4xl">
+        {/*
+          A blue hero, not a white page with blue text.
+          
+          The Ministry's own site leads with a solid band of its royal blue,
+          and a portal that only uses that colour for links reads as a
+          lookalike rather than part of the same estate. The photograph
+          shares the band so the two carry the page together.
+        */}
+        <section className="bg-gov-bright text-white">
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:gap-14 lg:py-16">
+            {/* --- the promise, left --- */}
+            <div>
+              <p className="mb-3 font-mono text-label uppercase tracking-[0.12em] text-white/70">
+                Republic of Kenya · Ministry of Health
+              </p>
+              <p className="font-serif text-2xl font-normal leading-none tracking-tight text-white/80">
                 Welcome to NHP
               </p>
-              <p className="mt-2 text-center font-serif text-4xl font-semibold leading-tight tracking-tight text-gov sm:text-5xl">
+              <h2 className="mt-1 font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
                 {portal.welcomeName}
-              </p>
+              </h2>
 
-              <div className="mt-6 h-14 w-px bg-rule" aria-hidden="true" />
-            </div>
+              <p className="mt-5 max-w-prose text-lg leading-relaxed text-white/90">{blurb}</p>
+              <p className="mt-2 max-w-prose text-sm text-white/65">{blurbSw}</p>
 
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link
-                href={primary.href}
-                className="rounded-md bg-gov px-6 py-3 font-semibold text-surface"
-              >
-                {primary.label}
-              </Link>
-              {secondary && (
+              <div className="mt-8 flex flex-wrap gap-3">
+                {/* White on blue, so the primary action is the brightest
+                    thing in the band rather than competing with it. */}
                 <Link
-                  href={secondary.href}
-                  className="rounded-md border border-gov px-6 py-3 font-semibold text-gov"
+                  href={primary.href}
+                  className="inline-flex min-h-11 items-center rounded-md bg-white px-6 font-semibold text-gov-bright transition-colors hover:bg-white/90"
                 >
-                  {secondary.label}
+                  {primary.label}
                 </Link>
+                {secondary && (
+                  <Link
+                    href={secondary.href}
+                    className="inline-flex min-h-11 items-center rounded-md border border-white/45 px-6 font-semibold text-white transition-colors hover:bg-white/10"
+                  >
+                    {secondary.label}
+                  </Link>
+                )}
+              </div>
+
+              {!secondary && (
+                /* The Ministry portal has no second action, and silence
+                   there would read as a missing button. */
+                <p className="mt-3 text-micro text-white/65">
+                  Ministry accounts are issued by the Ministry of Health.
+                </p>
               )}
             </div>
 
-            {!secondary && (
-              /* The Ministry portal has no second action, and silence there
-                 would read as a missing button. */
-              <p className="mt-3 text-center text-micro text-ink-faint">
-                Ministry accounts are issued by the Ministry of Health.
-              </p>
+            {/* --- the photograph, right --- */}
+            {!portal.image && (
+              /*
+                The Ministry portal carries no photograph — its door opens
+                on national statistics, and a stock clinical image would
+                misdescribe what is behind it. So the space says what the
+                portal is for instead of sitting empty.
+              */
+              <ul className="hidden gap-x-8 gap-y-5 lg:grid lg:grid-cols-2 lg:pl-6">
+                {[
+                  ['Disease burden', 'By county and sub-county, with the reporting completeness that qualifies it'],
+                  ['Referral closure', 'Whether a referred patient arrived, and whether an outcome came back'],
+                  ['Workforce', 'Derived from who actually checked in, not from an establishment list'],
+                  ['Outbreak signals', 'Raised automatically when a notifiable condition is recorded'],
+                ].map(([title, detail]) => (
+                  <li key={title}>
+                    <p className="font-semibold">{title}</p>
+                    <p className="mt-0.5 text-sm leading-snug text-white/70">{detail}</p>
+                  </li>
+                ))}
+              </ul>
             )}
+
+            {portal.image && (
+              <div className="relative hidden h-[380px] overflow-hidden rounded-xl lg:block">
+                {/*
+                  `object-cover` because the three portraits are a 4:3, a
+                  square and a tall portrait — a fixed box crops each to the
+                  same band rather than letting one dictate the layout.
+                */}
+                <Image
+                  src={portal.image}
+                  alt=""
+                  fill
+                  sizes="(min-width:1024px) 50vw, 100vw"
+                  className="object-cover"
+                  priority
+                />
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* The line the whole system rests on, given its own quiet band
+            beneath the hero rather than competing inside it. */}
+        <div className="border-b border-rule bg-surface">
+          <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+            <p className="max-w-prose font-serif text-xl font-medium leading-snug tracking-tight sm:text-2xl">
+              One health record that follows the person, not the building.
+            </p>
           </div>
         </div>
       </main>
