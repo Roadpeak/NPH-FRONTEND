@@ -69,7 +69,15 @@ export function WorkerNav() {
   }
 
   return (
-    <nav className="border-b border-rule bg-surface">
+    /*
+      The navigation is the blue band, as it is on health.go.ke.
+      
+      A portal that opens on a solid blue hero and then goes white the
+      moment you sign in loses its identity at the door. Carrying the
+      colour into the bar keeps the two halves of the portal recognisably
+      one place.
+    */
+    <nav className="bg-gov-bright text-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-1 gap-y-2 px-4 py-2 sm:px-6">
         {LINKS.map((l) => {
           const active = pathname === l.href || pathname.startsWith(`${l.href}/`);
@@ -79,8 +87,10 @@ export function WorkerNav() {
               href={l.href}
               className={`inline-flex min-h-[40px] items-center rounded px-3 text-sm ${
                 active
-                  ? 'bg-gov font-semibold text-ongov'
-                  : 'text-ink-soft hover:bg-surface-alt'
+                  ? // White on the band, so the selected tab is the
+                    // brightest thing in it rather than a darker patch.
+                    'bg-white font-semibold text-gov-bright'
+                  : 'text-white/75 hover:bg-white/10 hover:text-white'
               }`}
             >
               <Icon name={l.icon} size={14} className="mr-1.5" />
@@ -94,9 +104,13 @@ export function WorkerNav() {
             The check-in state, everywhere. It governs every clinical action
             in the portal, and a clinician who does not know they are
             checked out discovers it mid-consultation.
+
+            Kept in its own colours rather than the band's: green and amber
+            mean something here, and a status that reads as decoration is a
+            status nobody checks.
           */}
           {session ? (
-            <span className="inline-flex items-center gap-1.5 text-micro text-good">
+            <span className="inline-flex items-center gap-1.5 rounded bg-white/15 px-2.5 py-1 text-micro">
               <span className="h-2 w-2 rounded-full bg-good" />
               <span className="hidden sm:inline">{session.facilityName}</span>
               <span className="sm:hidden">Checked in</span>
@@ -104,18 +118,18 @@ export function WorkerNav() {
           ) : (
             <Link
               href="/worker/shift"
-              className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-caution/40 bg-caution-soft px-2.5 text-micro font-semibold text-caution"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded border border-caution/50 bg-caution-soft px-2.5 text-micro font-semibold text-caution"
             >
               <Icon name="pending" size={13} />
               Not checked in
             </Link>
           )}
 
-          {name && <span className="hidden text-micro text-ink-faint lg:inline">{name}</span>}
+          {name && <span className="hidden text-micro text-white/70 lg:inline">{name}</span>}
 
           <button
             onClick={signOut}
-            className="inline-flex min-h-[36px] items-center rounded px-2.5 text-micro text-ink-soft hover:text-gov"
+            className="inline-flex min-h-[36px] items-center rounded px-2.5 text-micro text-white/75 hover:bg-white/10 hover:text-white"
           >
             Sign out
           </button>

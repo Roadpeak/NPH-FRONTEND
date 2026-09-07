@@ -236,19 +236,26 @@ export default function MinistryPage() {
         the content and matches how a reader scans a report: masthead,
         title, tabs, then the figures.
       */}
-      <header className="border-b border-rule bg-surface">
+      {/* The blue band, as on the other portals and on health.go.ke. */}
+      <header className="bg-gov-bright text-white">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-8 gap-y-3 px-4 py-3 sm:px-6">
           <span className="font-serif text-lg font-medium">Ministry of Health</span>
-          <span className="hidden font-mono text-micro text-ink-faint sm:inline">
+          <span className="hidden font-mono text-micro text-white/60 sm:inline">
             National Health Portal
           </span>
           <div className="ml-auto flex items-center gap-3">
-            <span className="hidden text-sm text-ink-faint md:inline">
+            <span className="hidden text-sm text-white/70 md:inline">
               Analyst · National scope
             </span>
-            <Link href="/ministry/admin" className="btn btn-secondary">
+            <Link
+              href="/ministry/admin"
+              className="inline-flex min-h-11 items-center rounded-md border border-white/45 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+            >
               Administration
             </Link>
+            {/* Kept in its own green: this badge states what the portal
+                CANNOT do, and a badge that reads as decoration is one
+                nobody registers. */}
             <span className="chip chip-good">DE-IDENTIFIED AGGREGATES</span>
           </div>
         </div>
@@ -307,7 +314,7 @@ export default function MinistryPage() {
               aria-current={metric === m ? 'page' : undefined}
               className={`-mb-px border-b-2 px-4 py-2.5 text-sm ${
                 metric === m
-                  ? 'border-gov font-semibold text-gov'
+                  ? 'border-gov-bright font-semibold text-gov-bright'
                   : 'border-transparent text-ink-faint hover:text-ink-soft'
               }`}
             >

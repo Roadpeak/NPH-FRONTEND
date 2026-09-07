@@ -550,7 +550,10 @@ function Encounter() {
                       onClick={() => setStep(i)}
                       className={`flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-sm ${
                         state === 'current'
-                          ? 'bg-gov font-semibold text-ongov'
+                          ? // The same blue as the navigation above it. Two
+                            // blues marking "you are here" on one screen
+                            // reads as a fault rather than a hierarchy.
+                            'bg-gov-bright font-semibold text-white'
                           : 'text-ink-soft hover:bg-surface'
                       }`}
                     >

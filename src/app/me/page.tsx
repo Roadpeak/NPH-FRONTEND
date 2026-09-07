@@ -154,7 +154,7 @@ export default function CitizenPage() {
               onClick={() => setTab(t)}
               className={`shrink-0 border-b-2 px-4 py-3 text-center font-mono text-micro font-semibold ${
                 tab === t
-                  ? 'border-gov text-gov'
+                  ? 'border-gov-bright text-gov-bright'
                   : 'border-transparent text-ink-faint hover:text-ink-soft'
               }`}
             >

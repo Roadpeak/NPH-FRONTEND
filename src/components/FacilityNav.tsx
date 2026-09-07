@@ -94,7 +94,8 @@ export function FacilityNav() {
   }
 
   return (
-    <nav className="border-b border-rule bg-surface">
+    /* The blue band, matching the worker portal and the landing pages. */
+    <nav className="bg-gov-bright text-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-1 gap-y-2 px-4 py-2 sm:px-6">
         {LINKS.filter((l) => !l.admin || canAdminister).map((l) => {
           const active = pathname === l.href || pathname.startsWith(`${l.href}/`);
@@ -104,8 +105,8 @@ export function FacilityNav() {
               href={l.href}
               className={`inline-flex min-h-[40px] items-center rounded px-3 text-sm ${
                 active
-                  ? 'bg-gov font-semibold text-ongov'
-                  : 'text-ink-soft hover:bg-surface-alt'
+                  ? 'bg-white font-semibold text-gov-bright'
+                  : 'text-white/75 hover:bg-white/10 hover:text-white'
               }`}
             >
               <Icon name={l.icon} size={14} className="mr-1.5" />
@@ -124,19 +125,19 @@ export function FacilityNav() {
             above a roster headed "Milimani Family Clinic", which reads as
             a fault rather than as two true facts.
           */}
-          <span className="hidden items-center gap-1.5 text-micro text-ink-faint md:inline-flex">
+          <span className="hidden items-center gap-1.5 text-micro text-white/70 md:inline-flex">
             {atDesk && (
               <>
                 <Icon name="facility" size={13} />
                 <span>
-                  At <span className="text-ink-soft">{atDesk}</span>
+                  At <span className="text-white">{atDesk}</span>
                 </span>
               </>
             )}
             {profile && atDesk !== profile.name && (
               <span>
                 {atDesk && '· '}
-                Runs <span className="text-ink-soft">{profile.name}</span>
+                Runs <span className="text-white">{profile.name}</span>
                 {' · '}Level {profile.kephLevel} · {profile.isPublic ? 'Public' : 'Private'}
               </span>
             )}
@@ -149,7 +150,7 @@ export function FacilityNav() {
 
           <button
             onClick={signOut}
-            className="inline-flex min-h-[36px] items-center rounded px-2.5 text-micro text-ink-soft hover:text-gov"
+            className="inline-flex min-h-[36px] items-center rounded px-2.5 text-micro text-white/75 hover:bg-white/10 hover:text-white"
           >
             Sign out
           </button>
