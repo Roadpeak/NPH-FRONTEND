@@ -239,7 +239,7 @@ export default function MinistryPage() {
       {/* The blue band, as on the other portals and on health.go.ke. */}
       <header className="bg-gov-bright text-white">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-8 gap-y-3 px-4 py-3 sm:px-6">
-          <span className="font-serif text-lg font-medium">Ministry of Health</span>
+          <span className="font-serif text-lg font-medium">Administration</span>
           <span className="hidden font-mono text-micro text-white/60 sm:inline">
             National Health Portal
           </span>

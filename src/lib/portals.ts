@@ -97,9 +97,12 @@ export const PORTALS: Record<PortalId, Portal> = {
   },
   ministry: {
     id: 'ministry',
-    welcomeName: 'Ministry Portal',
-    name: 'Ministry of Health',
-    nameSw: 'Wizara ya Afya',
+    // Named for the function, not the institution, while the portal is
+    // unbranded. "Administration" describes what this door is for without
+    // asserting whose it is.
+    welcomeName: 'Administration Portal',
+    name: 'Administration',
+    nameSw: 'Utawala',
     blurb: 'National statistics, facility approvals and staff postings.',
     blurbSw: 'Takwimu za kitaifa, idhini ya vituo na uwekaji wa wafanyakazi.',
     basePath: '/ministry',
@@ -172,8 +175,8 @@ export function refusalFor(
     case 'ministry':
       return me.ministryUserId
         ? null
-        : 'Ministry accounts are issued by the Ministry of Health. This ' +
-            'account is not one.';
+        : 'Administration accounts are issued centrally. This account is ' +
+            'not one.';
 
     case 'citizen':
       // Everybody with a person record has their own record to read, and a

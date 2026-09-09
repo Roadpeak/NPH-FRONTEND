@@ -1,22 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="National Health Portal">
   <!--
-    The browser-tab mark: a health cross in government navy, on the flag's
-    red and green.
+    The browser-tab mark: a health cross in the portal's blue.
 
-    Three designs were rendered at 16px before this one, and each failed for
-    a reason worth recording:
+    The flag colours it carried before were removed with the rest of the
+    government branding — this deployment is not yet entitled to present
+    itself as a government service, and a tab icon is as much a claim of
+    provenance as a banner is.
 
-      - The coat of arms is the right mark on a page and the wrong one in a
-        tab. Its lions, shield and spears collapse into a smudge that reads
-        as a broken image rather than a government seal.
-      - A cross with the flag's bands running through it read as a striped
-        blob: at tab size the stripes cut the cross into pieces and the
-        shape stopped being a cross.
-      - Moving the bands into the lower arm made it read as a mug.
-
-    So the flag is the GROUND and the cross sits on it — one shape, two
-    colours, no detail smaller than a fifth of the canvas. It is legible at
-    16px, which is the only size that actually matters here.
+    What survives from the earlier design is the constraint that produced
+    it: one shape, nothing smaller than a fifth of the canvas, judged at
+    16px rather than at 64. A cross is unmistakable at any size.
   -->
   <defs>
     <clipPath id="r">
@@ -25,19 +18,10 @@
   </defs>
 
   <g clip-path="url(#r)">
-    <!-- Kenya's red over green, the two bands that carry at this size.
-         Black is omitted: against a tab bar it reads as a gap, not a band. -->
-    <rect width="64" height="32" fill="#BB0000"/>
-    <rect y="32" width="64" height="32" fill="#006600"/>
-
-    <!-- The cross, in the government navy used everywhere else in the
-         portal, with a white keyline so it holds its shape against both
-         bands. -->
+    <rect width="64" height="64" fill="#15428D"/>
     <g>
-      <rect x="24" y="10" width="16" height="44" fill="#ffffff"/>
-      <rect x="10" y="24" width="44" height="16" fill="#ffffff"/>
-      <rect x="26" y="12" width="12" height="40" fill="#0A3054"/>
-      <rect x="12" y="26" width="40" height="12" fill="#0A3054"/>
+      <rect x="26" y="12" width="12" height="40" fill="#ffffff"/>
+      <rect x="12" y="26" width="40" height="12" fill="#ffffff"/>
     </g>
   </g>
 </svg>

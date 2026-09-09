@@ -16,34 +16,16 @@ import type { Portal } from '@/lib/portals';
  * doors, one institution.
  */
 
-export function CoatOfArms({ size = 44 }: { size?: number }) {
-  return (
-    <Image
-      src="/img/coat-of-arms.png"
-      alt="Coat of Arms of the Republic of Kenya"
-      width={size}
-      height={size}
-      className="h-auto w-auto"
-      style={{ maxHeight: size }}
-      priority
-    />
-  );
-}
-
 /** The top bar: identity on the left, how to get help on the right. */
 export function PortalHeader({ portal }: { portal: Portal }) {
   return (
     <header className="border-b border-rule bg-surface">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        {/* The coat of arms and flag stripe are removed for now — this
+            deployment is not yet entitled to present itself as a government
+            service. */}
         <Link href="/" className="flex items-center gap-3">
-          <CoatOfArms />
-          {/* The flag bar separates the arms from the wordmark, the way SHA
-              separates its arms from its logotype. */}
-          <span className="flex h-10 w-1 flex-col overflow-hidden rounded-sm" aria-hidden="true">
-            <span className="flex-1 bg-ink" />
-            <span className="flex-1 bg-critical" />
-            <span className="flex-1 bg-good" />
-          </span>
+          <span className="h-10 w-1 rounded-sm bg-gov-bright" aria-hidden="true" />
           <span>
             <span className="block font-serif text-lg font-medium leading-tight tracking-tight">
               National Health Portal
@@ -58,19 +40,17 @@ export function PortalHeader({ portal }: { portal: Portal }) {
             misses, and 147 is the number someone reaches for when the
             portal has already failed them. */}
         <div className="flex items-center gap-1 text-sm">
-          {/* 147 is the real Kenyan health helpline. A portal with no way to
-              reach a person is one people abandon at the first problem. */}
+          {/* The helpline number and the .go.ke address are removed with
+              the rest of the branding: 147 is Kenya's real health helpline
+              and a .go.ke domain is a government one, so both assert a
+              provenance this deployment cannot yet claim. A portal with no
+              way to reach a person is one people abandon at the first
+              problem, so a support address stays — just not that one. */}
           <a
-            href="tel:147"
-            className="-my-2 inline-flex min-h-[44px] items-center px-3 font-semibold text-gov"
+            href="mailto:support@example.org"
+            className="-my-2 inline-flex min-h-[44px] items-center px-3 text-ink-soft hover:text-gov-bright"
           >
-            147
-          </a>
-          <a
-            href="mailto:help@nhp.health.go.ke"
-            className="-my-2 hidden min-h-[44px] items-center px-3 text-ink-soft hover:text-gov sm:inline-flex"
-          >
-            help@nhp.health.go.ke
+            Get help
           </a>
         </div>
       </div>
@@ -83,8 +63,8 @@ export function PortalFooter() {
     <footer className="border-t border-rule bg-surface">
       <div className="mx-auto max-w-6xl px-4 py-5 text-center sm:px-6">
         <p className="text-micro text-ink-faint">
-          Ministry of Health · Republic of Kenya. Every sign-in is recorded.
-          Access to a patient record is logged and shown to that patient.
+          Every sign-in is recorded. Access to a patient record is logged
+          and shown to that patient.
         </p>
       </div>
     </footer>
@@ -128,9 +108,6 @@ export function PortalWelcome({
           <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:gap-14 lg:py-16">
             {/* --- the promise, left --- */}
             <div>
-              <p className="mb-3 font-mono text-label uppercase tracking-[0.12em] text-white/70">
-                Republic of Kenya · Ministry of Health
-              </p>
               <p className="font-serif text-2xl font-normal leading-none tracking-tight text-white/80">
                 Welcome to NHP
               </p>
@@ -164,7 +141,7 @@ export function PortalWelcome({
                 /* The Ministry portal has no second action, and silence
                    there would read as a missing button. */
                 <p className="mt-3 text-micro text-white/65">
-                  Ministry accounts are issued by the Ministry of Health.
+                  Accounts for this portal are issued centrally.
                 </p>
               )}
             </div>

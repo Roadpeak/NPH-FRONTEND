@@ -249,7 +249,10 @@ describe('entering the portal you actually asked for', () => {
   });
 
   it('refuses anybody without a Ministry account at the Ministry door', () => {
-    expect(refusalFor(nobody, PORTALS.ministry)).toMatch(/issued by the Ministry/i);
+    // Matches on "issued centrally" rather than the institution: the
+    // portal is unbranded for now, and the refusal must still say where an
+    // account comes from.
+    expect(refusalFor(nobody, PORTALS.ministry)).toMatch(/issued centrally/i);
   });
 
   it('lets a citizen read their own record', () => {

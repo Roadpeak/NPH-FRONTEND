@@ -1,10 +1,9 @@
-import Image from 'next/image';
 
 /**
  * The frame every portal page sits in.
  *
  * Four portals, one visual system. The flag bar, the wordmark and the
- * "Republic of Kenya" eyebrow are constant, because a citizen and a Ministry
+ * wordmark is constant, because a citizen and a Ministry
  * analyst are looking at the same institution; only the portal name beneath
  * changes. Making each portal look like a different product would invite the
  * question of which one is the real government site.
@@ -45,21 +44,11 @@ export function PortalShell({
           the card should sit on the page, not cut into it.
         */}
         <div className="rounded-2xl border border-rule bg-surface p-6 shadow-[0_0_23px_0_rgba(0,0,0,0.04)] sm:p-10">
+          {/* The coat of arms and flag stripe are removed for now — this
+              deployment is not yet entitled to present itself as a
+              government service. The wordmark stands on its own. */}
           <div className="mb-6 flex items-center gap-3">
-            <Image
-              src="/img/coat-of-arms.png"
-              alt="Coat of Arms of the Republic of Kenya"
-              width={44}
-              height={44}
-              className="h-auto w-auto"
-              style={{ maxHeight: 44 }}
-              priority
-            />
-            <span className="flex h-10 w-1 flex-col overflow-hidden rounded-sm" aria-hidden="true">
-              <span className="flex-1 bg-ink" />
-              <span className="flex-1 bg-critical" />
-              <span className="flex-1 bg-good" />
-            </span>
+            <span className="flex h-10 w-1 flex-col overflow-hidden rounded-sm bg-gov-bright" aria-hidden="true" />
             <span>
               <span className="block font-serif text-lg font-medium leading-tight tracking-tight">
                 National Health Portal
@@ -78,22 +67,18 @@ export function PortalShell({
           {children}
         </div>
 
+        {/* The helpline number and the .go.ke address went with the rest of
+            the branding — 147 is Kenya's real health helpline and .go.ke is
+            a government domain. A portal with no way to reach a person is
+            one people abandon at the first problem, so an address stays. */}
         <p className="mt-4 text-center text-micro text-ink-faint">
-          Contact{' '}
           <a
-            href="tel:147"
-            className="inline-flex min-h-[44px] items-center px-1 font-semibold text-gov"
+            href="mailto:support@example.org"
+            className="inline-flex min-h-[44px] items-center px-1 font-semibold text-gov-bright"
           >
-            147
+            Get help
           </a>{' '}
-          or{' '}
-          <a
-            href="mailto:help@nhp.health.go.ke"
-            className="inline-flex min-h-[44px] items-center px-1 font-semibold text-gov"
-          >
-            help@nhp.health.go.ke
-          </a>{' '}
-          for help. Every sign-in is recorded.
+          · Every sign-in is recorded.
         </p>
       </div>
     </main>

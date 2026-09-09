@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { FlagBar } from '@/components/PortalShell';
 
 export const metadata = {
   title: 'National Health Portal',
@@ -23,9 +22,7 @@ export const metadata = {
 export default function Landing() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-14 sm:py-20">
-      <FlagBar />
 
-      <p className="eyebrow mb-2 mt-6">Republic of Kenya</p>
       <h1 className="mb-3 font-serif text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
         National Health Portal
       </h1>
@@ -88,7 +85,7 @@ export default function Landing() {
             rel="nofollow"
             className="link"
           >
-            Ministry of Health
+            Administration
           </Link>
           <p className="font-mono text-micro text-ink-faint">/ministry</p>
         </li>

@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Public_Sans, Newsreader, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
-import { GovBanner } from '@/components/GovBanner';
 
 /**
  * Public Sans — the US federal design system face. Built for government
@@ -54,10 +53,16 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
       <body>
-        {/* Above everything, on every page: a phishing site can copy a
-            layout, and a constant mark of provenance is what gives someone
-            something to look for. */}
-        <GovBanner />
+        {/*
+          The government banner is removed for now.
+
+          It read "An official website of the Kenyan government" above every
+          page, which is a claim this deployment is not yet entitled to make.
+          The component is kept rather than deleted: when the portal is
+          adopted, restoring it is one line, and a constant mark of
+          provenance is what gives someone something to look for against a
+          phishing copy.
+        */}
         {children}
       </body>
     </html>

@@ -225,7 +225,7 @@ export function SignInForm({
                account is issued, never self-created. Saying so is better
                than a missing link the visitor reads as a broken page. */
             <p className="mt-4 text-center text-micro text-ink-faint">
-              Ministry accounts are issued by the Ministry of Health. They
+              Administration accounts are issued centrally. They
               cannot be created here.
             </p>
           )}
