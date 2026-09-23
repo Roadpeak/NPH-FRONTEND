@@ -47,6 +47,11 @@ import {
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { WorkerNav } from '@/components/WorkerNav';
+import {
+  PatientBrief,
+  TriageAssistPanel,
+  DestinationFinder,
+} from '@/components/DecisionSupport';
 
 /**
  * Fallback only. The consultation opens on whoever `?patient=` names — the
@@ -609,6 +614,15 @@ function Encounter() {
             {/* --- 0. Presentation --- */}
             {step === 0 && (
               <div className="space-y-4">
+                {/*
+                  Decision support sits at the top of Presentation because
+                  that is when the clinician is still forming a picture. It
+                  is advisory: nothing here writes to the record, and the
+                  clinician in the room overrides all of it.
+                */}
+                {patient && <PatientBrief nhpId={patient.person.displayNumber} />}
+                {patient && <TriageAssistPanel nhpId={patient.person.displayNumber} />}
+
                 <label className="block">
                   <span className="eyebrow mb-1 block">
                     What they have come for
@@ -682,6 +696,13 @@ function Encounter() {
             {/* --- 4. Disposition --- */}
             {step === 4 && (
               <div className="space-y-4">
+                {/*
+                  Asked here rather than earlier, because "where can they be
+                  sent" is a disposition question and putting it anywhere
+                  else invites a referral before anyone examined the patient.
+                */}
+                <DestinationFinder />
+
                 <fieldset>
                   <legend className="eyebrow mb-2">How the visit ended</legend>
                   <div className="space-y-1.5">

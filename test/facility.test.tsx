@@ -46,6 +46,17 @@ const facilityStub: { [K in keyof Facility]: ReturnType<typeof vi.fn> } = {
   queue: vi.fn(),
   registerArrival: vi.fn(),
   updateArrivalPayer: vi.fn(),
+  capabilities: vi.fn(async () => ({
+    facilityName: '',
+    kephLevel: 3,
+    staleAfterDays: 90,
+    expiredAfterDays: 365,
+    summary: { claimed: 0, verified: 0, stale: 0, expired: 0, oldestConfirmedAt: null },
+    capabilities: [],
+  })),
+  claimCapability: vi.fn(),
+  withdrawCapability: vi.fn(),
+  reconfirmCapabilities: vi.fn(),
   closeArrival: vi.fn(),
 };
 
@@ -75,6 +86,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
 const { default: ReceptionPage } = await import('@/app/facility/reception/page');
 const { default: StaffPage } = await import('@/app/facility/staff/page');
 const { default: ProfilePage } = await import('@/app/facility/profile/page');
+const { default: CapabilitiesPage } = await import('@/app/facility/capabilities/page');
 
 const PROFILE = {
   id: 'f1',
@@ -570,5 +582,149 @@ describe('the navigation a reception account sees', () => {
     authStub.me.mockImplementation(() => new Promise(() => {}) as never);
     render(<ReceptionPage />);
     expect(screen.queryByRole('link', { name: /^staff$/i })).not.toBeInTheDocument();
+  });
+});
+
+/*
+ * THE CAPABILITY REGISTER.
+ *
+ * Routing sends patients on the strength of this screen. Two things must
+ * hold visibly, because both are ways a patient reaches a building that
+ * cannot treat them:
+ *
+ *   - What the facility CANNOT claim is shown, greyed, with the reason.
+ *     Hiding it reads as a missing feature rather than as a rule.
+ *   - A claim that has gone stale says so. Silent decay is how a register
+ *     rots while still looking authoritative.
+ */
+describe('capability register', () => {
+  const REGISTER = {
+    facilityName: 'Milimani Family Clinic',
+    kephLevel: 3,
+    staleAfterDays: 90,
+    expiredAfterDays: 365,
+    summary: {
+      claimed: 2,
+      verified: 1,
+      stale: 1,
+      expired: 0,
+      oldestConfirmedAt: '2026-05-01T00:00:00.000Z',
+    },
+    capabilities: [
+      {
+        code: 'ANTENATAL',
+        labelEn: 'Antenatal care',
+        labelSw: 'Huduma za ujauzito',
+        domain: 'SERVICE' as const,
+        minKephLevel: 2,
+        eligible: true,
+        held: true,
+        status: 'VERIFIED' as const,
+        availability: 'ROUTINE' as const,
+        verifiedAt: '2026-06-01T00:00:00.000Z',
+        lastConfirmedAt: '2026-09-01T00:00:00.000Z',
+        freshness: 'FRESH' as const,
+      },
+      {
+        code: 'BLOOD_SUGAR',
+        labelEn: 'Blood sugar testing',
+        labelSw: 'Kipimo cha sukari',
+        domain: 'DIAGNOSTIC' as const,
+        minKephLevel: 2,
+        eligible: true,
+        held: true,
+        status: 'CLAIMED' as const,
+        availability: 'BUSINESS_HOURS' as const,
+        verifiedAt: null,
+        lastConfirmedAt: '2026-05-01T00:00:00.000Z',
+        freshness: 'STALE' as const,
+      },
+      {
+        code: 'BLOOD_CULTURE',
+        labelEn: 'Blood culture',
+        labelSw: 'Kipimo cha damu',
+        domain: 'DIAGNOSTIC' as const,
+        minKephLevel: 5,
+        eligible: false,
+        held: false,
+        status: null,
+        availability: null,
+        verifiedAt: null,
+        lastConfirmedAt: null,
+        freshness: null,
+      },
+    ],
+  };
+
+  it('shows what is out of reach, with the reason, rather than hiding it', async () => {
+    facilityStub.capabilities.mockResolvedValue(REGISTER);
+
+    render(<CapabilitiesPage />);
+
+    await screen.findByText('Blood culture');
+    // The rule is stated on screen — a disabled checkbox with no
+    // explanation reads as a broken portal.
+    expect(screen.getByText(/Needs a KEPH level 5 facility/i)).toBeInTheDocument();
+    expect(screen.getByText(/This one is\s+level 3/i)).toBeInTheDocument();
+
+    const box = screen
+      .getByText('Blood culture')
+      .closest('li')!
+      .querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(box.disabled).toBe(true);
+  });
+
+  it('says plainly when a claim has gone stale, and by when it stops routing', async () => {
+    facilityStub.capabilities.mockResolvedValue(REGISTER);
+
+    render(<CapabilitiesPage />);
+
+    await screen.findByText(/1 claim not confirmed in 90 days/i);
+    expect(screen.getByText(/stop routing patients after 365/i)).toBeInTheDocument();
+  });
+
+  it('confirms the whole register in one action', async () => {
+    facilityStub.capabilities.mockResolvedValue(REGISTER);
+    facilityStub.reconfirmCapabilities.mockResolvedValue({
+      confirmed: 2,
+      suspended: 0,
+      confirmedAt: '2026-09-14T00:00:00.000Z',
+    });
+
+    render(<CapabilitiesPage />);
+    await screen.findByText('Antenatal care');
+    await userEvent.click(screen.getByRole('button', { name: /confirm all still true/i }));
+
+    // Sends exactly what is held — which is also how anything lapsed gets
+    // suspended server-side.
+    await waitFor(() =>
+      expect(facilityStub.reconfirmCapabilities).toHaveBeenCalledWith([
+        'ANTENATAL',
+        'BLOOD_SUGAR',
+      ]),
+    );
+    expect(await screen.findByText(/2 capabilities confirmed as still true/i)).toBeInTheDocument();
+  });
+
+  it('withdrawing a claim warns that patients stop being routed for it', async () => {
+    facilityStub.capabilities.mockResolvedValue(REGISTER);
+    facilityStub.withdrawCapability.mockResolvedValue({ suspended: true });
+
+    render(<CapabilitiesPage />);
+    await screen.findByText('Antenatal care');
+
+    const box = screen
+      .getByText('Antenatal care')
+      .closest('li')!
+      .querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    await userEvent.click(box);
+
+    await waitFor(() =>
+      expect(facilityStub.withdrawCapability).toHaveBeenCalledWith('ANTENATAL'),
+    );
+    expect(
+      await screen.findByText(/no longer be routed here for it/i),
+    ).toBeInTheDocument();
   });
 });

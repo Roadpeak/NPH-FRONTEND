@@ -417,6 +417,45 @@ export interface StaffAccountRow {
   mustChangePassword: boolean;
 }
 
+
+/**
+ * One row of the capability register.
+ *
+ * The whole vocabulary is returned, held or not, because the screen is a
+ * checklist — you cannot tick what you are not shown. `eligible` is false
+ * for anything above the facility's KEPH level: offered, but with the
+ * reason visible, rather than failing on save.
+ */
+export interface CapabilityRow {
+  code: string;
+  labelEn: string;
+  labelSw: string;
+  domain: 'SERVICE' | 'DIAGNOSTIC' | 'EQUIPMENT' | 'SPECIALTY';
+  minKephLevel: number | null;
+  eligible: boolean;
+  held: boolean;
+  status: 'CLAIMED' | 'VERIFIED' | 'SUSPENDED' | null;
+  availability: 'ROUTINE' | 'BUSINESS_HOURS' | 'ON_CALL' | 'REFERRAL_ONLY' | null;
+  verifiedAt: string | null;
+  lastConfirmedAt: string | null;
+  freshness: 'FRESH' | 'STALE' | 'EXPIRED' | null;
+}
+
+export interface CapabilityRegister {
+  facilityName: string;
+  kephLevel: number;
+  staleAfterDays: number;
+  expiredAfterDays: number;
+  summary: {
+    claimed: number;
+    verified: number;
+    stale: number;
+    expired: number;
+    oldestConfirmedAt: string | null;
+  };
+  capabilities: CapabilityRow[];
+}
+
 export const facility = {
   me: () => api.get<FacilityProfile>('/facility/me'),
 
@@ -473,6 +512,34 @@ export const facility = {
 
   removeStaff: (affiliationId: string) =>
     api.delete<{ ended: boolean }>(`/facility/staff/${affiliationId}`),
+
+  /**
+   * What this facility says it can treat.
+   *
+   * Routing rests on this being true: a capability claimed and not honoured
+   * sends a patient past a hospital that could have helped them.
+   */
+  capabilities: () => api.get<CapabilityRegister>('/facility/capabilities'),
+
+  claimCapability: (
+    capabilityCode: string,
+    availability?: CapabilityRow['availability'],
+  ) =>
+    api.post<{ claimed: boolean; status: string; availability: string; lastConfirmedAt: string }>(
+      '/facility/capabilities',
+      { capabilityCode, ...(availability ? { availability } : {}) },
+    ),
+
+  /** Withdraw a claim. Suspended, never deleted — the history is the record. */
+  withdrawCapability: (code: string) =>
+    api.delete<{ suspended: boolean }>(`/facility/capabilities/${code}`),
+
+  /** "Everything on this list is still true." Anything left out is suspended. */
+  reconfirmCapabilities: (capabilityCodes: string[]) =>
+    api.post<{ confirmed: number; suspended: number; confirmedAt: string }>(
+      '/facility/capabilities/reconfirm',
+      { capabilityCodes },
+    ),
 
   queue: () => api.get<{ facilityName: string; queue: QueueEntry[] }>('/facility/queue'),
 
@@ -990,7 +1057,111 @@ export interface AccessEntry {
   outcome: string;
 }
 
+
+/**
+ * A facility the routing engine matched, with the distance that ranked it.
+ */
+export interface FacilityMatch {
+  id: string;
+  name: string;
+  kephLevel: number;
+  mflCode: string | null;
+  locality: string | null;
+  is24Hour: boolean;
+  distanceKm?: number | null;
+  countyName?: string | null;
+  matchedCapabilities?: string[];
+  staleCapabilities?: string[];
+}
+
+export interface SymptomGroup {
+  bodySystem: string;
+  items: Array<{
+    code: string;
+    label: string;
+    question: string;
+    severityMarker: boolean;
+  }>;
+}
+
+/**
+ * Why the search was widened by something in the person's own record.
+ *
+ * Shown to the citizen, so a recommendation can SAY "because you are living
+ * with diabetes" rather than silently ranking differently.
+ */
+export interface HistoryFactor {
+  label: string;
+  capabilities: string[];
+}
+
+export interface CareRecommendation {
+  urgency: 'EMERGENCY' | 'URGENT_24H' | 'SOON_7D' | 'ROUTINE' | null;
+  /**
+   * A red-flag rule matched while the red-flag rules are still unreviewed.
+   *
+   * The server returns NO facilities in this case and the screen must not
+   * invent any — the advice is to go to the nearest emergency department.
+   */
+  emergency: boolean;
+  adviceEn: string;
+  adviceSw: string;
+  facilities: FacilityMatch[];
+  scope: 'SUBCOUNTY' | 'COUNTY' | 'NATIONAL' | 'NONE';
+  historyFactors: HistoryFactor[];
+  rulesFired: string[];
+  requiredCapabilities?: string[];
+  disclaimer: string;
+}
+
+export interface ClinicalBrief {
+  brief: string;
+  ageYears: number;
+  severeAllergies: Array<{ substanceLabel: string; reaction: string }>;
+  chronicConditions: string[];
+  currentMedications: string[];
+  lastSeen: { date: string; facilityName: string | null } | null;
+  derivedFrom: 'STRUCTURED_RECORD';
+}
+
+export interface AllergyCheck {
+  medication: { kemlCode: string; genericName: string };
+  conflicts: Array<{ substanceLabel: string; reaction: string; severity: string }>;
+  checkedAgainst: number;
+  note: string | null;
+}
+
+export interface TriageAssist {
+  urgency: string | null;
+  redFlag: boolean;
+  rulesFired: string[];
+  inactiveRulesMatched: string[];
+  requiredCapabilities: string[];
+  minKephLevel: number;
+  historyFactors: HistoryFactor[];
+  adviceEn: string;
+  advisory: true;
+  disclaimer: string;
+}
+
 export const citizen = {
+  /**
+   * Where should I go?
+   *
+   * Deterministic throughout: the symptoms come from a controlled
+   * vocabulary and match numbered rules a clinician wrote. No model is in
+   * this decision path, which is why every answer can be explained.
+   */
+  symptoms: (lang: 'en' | 'sw' = 'en') =>
+    api.get<{ ageYears: number; groups: SymptomGroup[] }>(`/care/symptoms?lang=${lang}`),
+
+  recommend: (input: {
+    symptoms: string[];
+    lang?: 'en' | 'sw';
+    latitude?: number;
+    longitude?: number;
+  }) => api.post<CareRecommendation>('/care/recommend', input),
+
   summary: (lang: 'en' | 'sw' = 'en') =>
     api.get<CitizenSummaryPayload>(`/persons/me/summary?lang=${lang}`),
 
@@ -1110,6 +1281,31 @@ export const ministry = {
 };
 
 export const nhp = {
+
+  /** Where can this patient be sent? Ranked, nearest first. */
+  destinations: (capabilities: string[], limit = 5) =>
+    api.get<{ requiredCapabilities: string[]; destinations: FacilityMatch[] }>(
+      `/clinical/destinations?capabilities=${encodeURIComponent(capabilities.join(','))}&limit=${limit}`,
+    ),
+
+  /**
+   * Does this patient have a recorded allergy to what is being prescribed?
+   *
+   * A lookup against what a clinician already wrote — it cannot know about
+   * an allergy nobody recorded, and `note` says so.
+   */
+  allergyCheck: (nhpId: string, kemlCode: string) =>
+    api.get<AllergyCheck>(
+      `/clinical/${nhpId}/allergy-check?kemlCode=${encodeURIComponent(kemlCode)}`,
+    ),
+
+  /** The patient in a paragraph, assembled from the structured record. */
+  brief: (nhpId: string) => api.get<ClinicalBrief>(`/clinical/${nhpId}/brief`),
+
+  /** Decision support. Names the inactive red-flag rules, unlike the citizen route. */
+  triageAssist: (nhpId: string, symptoms: string[]) =>
+    api.post<TriageAssist>('/clinical/triage-assist', { nhpId, symptoms }),
+
   searchPatients: (identifier: string) =>
     api.get<{ match: PersonSummary | null; dependants: PersonSummary[] }>(
       `/persons/search?identifier=${encodeURIComponent(identifier)}`,

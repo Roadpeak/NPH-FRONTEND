@@ -13,11 +13,14 @@ import {
   type AccessEntry,
   type CitizenProfile,
   type FamilyMember,
+  type SymptomGroup,
+  type CareRecommendation,
 } from '@/lib/api';
 import { PORTALS } from '@/lib/portals';
 import { CitizenHeader } from '@/components/CitizenHeader';
 import { Icon, type IconName } from '@/components/icons';
 import { Field, inputClass } from '@/components/PortalShell';
+import { MatchingSteps, MatchTrace } from '@/components/MatchingSteps';
 
 /**
  * The citizen timeline.
@@ -35,20 +38,33 @@ import { Field, inputClass } from '@/components/PortalShell';
  * Four tabs, no more. Record · Family · Access · Find care.
  */
 
-type Tab = 'RECORD' | 'FAMILY' | 'PROFILE' | 'ACCESS';
+type Tab = 'RECORD' | 'CARE' | 'FAMILY' | 'PROFILE' | 'ACCESS';
 type Lang = 'en' | 'sw';
 
 /** One icon per tab, so the row is scannable before it is read. */
 const TAB_ICONS: Record<Tab, IconName> = {
   RECORD: 'record',
+  CARE: 'location',
   FAMILY: 'family',
   PROFILE: 'citizen',
   ACCESS: 'access',
 };
 
 const TAB_LABELS: Record<Lang, Record<Tab, string>> = {
-  en: { RECORD: 'Record', FAMILY: 'Family', PROFILE: 'Profile', ACCESS: 'Who has seen it' },
-  sw: { RECORD: 'Rekodi', FAMILY: 'Familia', PROFILE: 'Wasifu', ACCESS: 'Nani ameiona' },
+  en: {
+    RECORD: 'Record',
+    CARE: 'Find care',
+    FAMILY: 'Family',
+    PROFILE: 'Profile',
+    ACCESS: 'Who has seen it',
+  },
+  sw: {
+    RECORD: 'Rekodi',
+    CARE: 'Tafuta huduma',
+    FAMILY: 'Familia',
+    PROFILE: 'Wasifu',
+    ACCESS: 'Nani ameiona',
+  },
 };
 
 function formatDate(iso: string, lang: Lang) {
@@ -148,7 +164,7 @@ export default function CitizenPage() {
       */}
       <nav className="border-b border-rule bg-surface-alt">
         <div className="mx-auto flex max-w-4xl overflow-x-auto px-4 sm:px-6">
-          {(['RECORD', 'FAMILY', 'PROFILE', 'ACCESS'] as Tab[]).map((t) => (
+          {(['RECORD', 'CARE', 'FAMILY', 'PROFILE', 'ACCESS'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -309,6 +325,7 @@ export default function CitizenPage() {
           </>
         )}
 
+        {tab === 'CARE' && <CarePanel lang={lang} />}
         {tab === 'FAMILY' && <FamilyPanel lang={lang} />}
 
         {tab === 'PROFILE' && <ProfilePanel lang={lang} />}
@@ -850,5 +867,370 @@ function ProfilePanel({ lang }: { lang: Lang }) {
       </dl>
       <p className="mt-2 max-w-prose text-micro text-ink-faint">{t.cannotChangeWhy}</p>
     </>
+  );
+}
+
+/**
+ * Find care.
+ *
+ * The citizen-facing half of the routing engine, and the screen where the
+ * system is most tempted to overreach. Four rules hold it in place:
+ *
+ *   - Symptoms are PICKED, never typed. Free text into a rules engine
+ *     promises an understanding the engine does not have.
+ *   - The disclaimer is never conditional. NHP says where to go; it does
+ *     not say what is wrong.
+ *   - When something serious matches, the screen gives ONE instruction and
+ *     no facility list. Every red-flag rule is still unreviewed, and
+ *     offering a destination would be acting on a rule nobody has signed.
+ *   - When the person's own record changed the answer, the screen says so.
+ *     Someone who cannot see why they were sent somewhere cannot disagree.
+ */
+const CARE_T = {
+  en: {
+    title: 'Find the right facility',
+    intro:
+      'Tell us what is wrong and we will suggest where to go. This is guidance on where to seek care, not a diagnosis.',
+    matching: 'Smart care matching',
+    stepRules: 'Matching your symptoms to care rules',
+    stepRecord: 'Checking your health record',
+    stepFacilities: 'Finding facilities that can treat this',
+    how: 'How this was worked out',
+    lblRules: 'Rules matched',
+    lblNeeds: 'Facility needs',
+    lblSearched: 'Searched',
+    lblRecord: 'From your record',
+    countRules: (n: number) => `${n} matched`,
+    countFacilities: (n: number) => `${n} found`,
+    bestMatch: 'Best match',
+    pick: 'What are you feeling?',
+    picked: 'selected',
+    find: 'Find a facility',
+    finding: 'Finding…',
+    clear: 'Start again',
+    noneChosen: 'Choose at least one symptom.',
+    emergencyTitle: 'Go now',
+    whyTitle: 'Why these facilities',
+    because: 'Because your record shows you are living with',
+    results: 'Where to go',
+    noneFound:
+      'We could not find a facility with what you need nearby. Go to your nearest health facility and they will refer you.',
+    level: 'Level',
+    open24: 'Open 24 hours',
+    away: 'km away',
+    urgency: {
+      EMERGENCY: 'Emergency — go now',
+      URGENT_24H: 'Urgent — go within 24 hours',
+      SOON_7D: 'Go within a week',
+      ROUTINE: 'Routine — book a visit',
+    } as Record<string, string>,
+  },
+  sw: {
+    title: 'Tafuta kituo sahihi',
+    intro:
+      'Tuambie tatizo lako na tutapendekeza mahali pa kwenda. Huu ni mwongozo wa mahali pa kupata huduma, si utambuzi wa ugonjwa.',
+    matching: 'Ulinganishaji mahiri',
+    stepRules: 'Kulinganisha dalili zako na kanuni za huduma',
+    stepRecord: 'Kuangalia rekodi yako ya afya',
+    stepFacilities: 'Kutafuta vituo vinavyoweza kutibu hili',
+    how: 'Hili lilipatikanaje',
+    lblRules: 'Kanuni',
+    lblNeeds: 'Kituo kinahitaji',
+    lblSearched: 'Ilitafutwa',
+    lblRecord: 'Kutoka rekodi yako',
+    countRules: (n: number) => `${n} zimelingana`,
+    countFacilities: (n: number) => `${n} vimepatikana`,
+    bestMatch: 'Linalofaa zaidi',
+    pick: 'Unahisi nini?',
+    picked: 'zimechaguliwa',
+    find: 'Tafuta kituo',
+    finding: 'Inatafuta…',
+    clear: 'Anza upya',
+    noneChosen: 'Chagua angalau dalili moja.',
+    emergencyTitle: 'Nenda sasa',
+    whyTitle: 'Kwa nini vituo hivi',
+    because: 'Kwa sababu rekodi yako inaonyesha unaishi na',
+    results: 'Mahali pa kwenda',
+    noneFound:
+      'Hatukupata kituo chenye unachohitaji karibu. Nenda kituo cha afya kilicho karibu nawe na watakuelekeza.',
+    level: 'Ngazi',
+    open24: 'Wazi saa 24',
+    away: 'km kutoka hapa',
+    urgency: {
+      EMERGENCY: 'Dharura — nenda sasa',
+      URGENT_24H: 'Haraka — nenda ndani ya saa 24',
+      SOON_7D: 'Nenda ndani ya wiki moja',
+      ROUTINE: 'Kawaida — panga ziara',
+    } as Record<string, string>,
+  },
+};
+
+function CarePanel({ lang }: { lang: Lang }) {
+  const t = CARE_T[lang];
+  const [groups, setGroups] = useState<SymptomGroup[] | null>(null);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [result, setResult] = useState<CareRecommendation | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    citizen
+      .symptoms(lang)
+      .then((r) => !cancelled && setGroups(r.groups))
+      .catch(() => !cancelled && setGroups([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [lang]);
+
+  function toggle(code: string) {
+    setResult(null);
+    setChosen((c) => (c.includes(code) ? c.filter((x) => x !== code) : [...c, code]));
+  }
+
+  async function find() {
+    if (!chosen.length) {
+      setError(t.noneChosen);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      setResult(await citizen.recommend({ symptoms: chosen, lang }));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not find a facility');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const advice = result ? (lang === 'sw' ? result.adviceSw : result.adviceEn) : '';
+
+  return (
+    <section>
+      <h2 className="eyebrow mb-1">{t.title}</h2>
+      <p className="mb-5 max-w-2xl text-sm text-ink-soft">{t.intro}</p>
+
+      {error && (
+        <p role="alert" className="mb-4 text-sm text-critical">
+          {error}
+        </p>
+      )}
+
+      {/*
+        The engine's reasoning, made visible.
+        
+        Each step names work the engine genuinely does — match numbered
+        rules, read the person's record, filter facilities by declared
+        capability. Shown while the request is in flight and replaced by
+        the result, so it informs rather than performs.
+      */}
+      {(busy || result) && (
+        <div className="mb-4">
+          <MatchingSteps
+            title={t.matching}
+            done={!busy}
+            steps={[
+              {
+                label: t.stepRules,
+                detail:
+                  !busy && result && !result.emergency
+                    ? t.countRules(result.rulesFired.length)
+                    : undefined,
+              },
+              { label: t.stepRecord },
+              {
+                label: t.stepFacilities,
+                detail:
+                  !busy && result && !result.emergency
+                    ? t.countFacilities(result.facilities.length)
+                    : undefined,
+              },
+            ]}
+          />
+        </div>
+      )}
+
+      {/*
+        A red flag. One instruction, no facility list, and no rule id —
+        a citizen has no use for "RF001" and the rule is unreviewed anyway.
+      */}
+      {result?.emergency && (
+        <div className="mb-6 rounded-lg border-2 border-critical bg-critical-soft px-5 py-4">
+          <p className="mb-1 font-serif text-lg font-semibold text-critical">
+            {t.emergencyTitle}
+          </p>
+          <p className="text-sm text-ink">{advice}</p>
+        </div>
+      )}
+
+      {result && !result.emergency && (
+        <div className="mb-6 space-y-4">
+          {result.urgency && (
+            <p className="inline-block rounded-full border border-gov/30 bg-gov-soft px-3 py-1 text-xs font-semibold text-gov">
+              {t.urgency[result.urgency] ?? result.urgency}
+            </p>
+          )}
+          <p className="text-sm text-ink">{advice}</p>
+
+          {/*
+            Why the search was widened. Said out loud, because a citizen who
+            cannot see the reason has no way to tell us it is wrong.
+          */}
+          {result.historyFactors.length > 0 && (
+            <p className="rounded-md border border-rule bg-surface-alt px-3 py-2 text-sm text-ink-soft">
+              <span className="font-semibold text-ink">{t.whyTitle}: </span>
+              {t.because}{' '}
+              {result.historyFactors.map((f) => f.label).join(', ')}.
+            </p>
+          )}
+
+          <div>
+            <h3 className="eyebrow mb-2">{t.results}</h3>
+            {result.facilities.length === 0 ? (
+              <p className="rounded-md border border-rule bg-surface px-4 py-6 text-sm text-ink-soft">
+                {t.noneFound}
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {result.facilities.map((f, i) => (
+                  <li
+                    key={f.id}
+                    className={`animate-step-in rounded-lg border bg-surface px-4 py-3 ${
+                      /* The first result is the engine's best match, and
+                         saying so beats making somebody infer it from
+                         list order. */
+                      i === 0 ? 'border-gov/40 shadow-sm' : 'border-rule'
+                    }`}
+                    style={{ animationDelay: `${i * 50}ms` }}
+                  >
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <span className="flex-1 text-sm font-semibold text-ink">{f.name}</span>
+                      {i === 0 && (
+                        <span className="rounded-full bg-gov-bright/12 px-2 py-0.5 font-mono text-micro font-semibold uppercase tracking-wide text-gov-bright">
+                          {t.bestMatch}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-micro text-ink-faint">
+                      <span className="rounded border border-rule px-1.5 py-0.5">
+                        {t.level} {f.kephLevel}
+                      </span>
+                      {f.is24Hour && (
+                        <span className="rounded border border-rule px-1.5 py-0.5">
+                          {t.open24}
+                        </span>
+                      )}
+                      {typeof f.distanceKm === 'number' && (
+                        <span className="rounded border border-rule px-1.5 py-0.5">
+                          {f.distanceKm.toFixed(0)} {t.away}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* The disclaimer is not conditional and never has been. */}
+      {result && (
+        <p className="mb-3 text-xs text-ink-faint">{result.disclaimer}</p>
+      )}
+
+      {/*
+        Kept on screen after the fact, unlike the steps above.
+        
+        This is the difference between a system that felt clever for a
+        moment and one a person can interrogate — and interrogability is
+        the whole argument for routing on rules rather than a model. Not
+        shown for a gated emergency: a citizen has no use for a rule id,
+        and the rule that matched is unreviewed anyway.
+      */}
+      {result && !result.emergency && (
+        <div className="mb-6">
+          <MatchTrace
+            rulesFired={result.rulesFired}
+            capabilities={result.requiredCapabilities ?? []}
+            scope={result.scope}
+            historyLabels={result.historyFactors.map((f) => f.label)}
+            labels={{
+              how: t.how,
+              rules: t.lblRules,
+              needs: t.lblNeeds,
+              searched: t.lblSearched,
+              record: t.lblRecord,
+            }}
+          />
+        </div>
+      )}
+
+      <h3 className="eyebrow mb-2">{t.pick}</h3>
+      {groups === null ? (
+        <p className="text-sm text-ink-faint">…</p>
+      ) : (
+        <div className="space-y-5">
+          {groups.map((g) => (
+            <div key={g.bodySystem}>
+              <p className="mb-2 font-mono text-micro font-semibold uppercase tracking-wide text-ink-faint">
+                {g.bodySystem.replace(/_/g, ' ')}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {g.items.map((item) => {
+                  const on = chosen.includes(item.code);
+                  return (
+                    <button
+                      key={item.code}
+                      type="button"
+                      onClick={() => toggle(item.code)}
+                      aria-pressed={on}
+                      className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                        on
+                          ? 'border-gov bg-gov text-ongov'
+                          : 'border-rule bg-surface text-ink hover:border-gov/40'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={find}
+          disabled={busy}
+          className="rounded-lg bg-gov px-5 py-2.5 text-sm font-medium text-ongov transition hover:bg-gov-bright disabled:opacity-50"
+        >
+          {busy ? t.finding : t.find}
+        </button>
+        {chosen.length > 0 && (
+          <>
+            <span className="text-sm text-ink-soft">
+              {chosen.length} {t.picked}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setChosen([]);
+                setResult(null);
+                setError(null);
+              }}
+              className="text-sm text-ink-faint underline hover:text-ink"
+            >
+              {t.clear}
+            </button>
+          </>
+        )}
+      </div>
+    </section>
   );
 }

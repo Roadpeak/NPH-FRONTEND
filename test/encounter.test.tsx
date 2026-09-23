@@ -101,6 +101,37 @@ const nhpStub = {
     disposition: 'DISCHARGED' as const,
   })),
   checkPrescribing: vi.fn(async () => ({ verdict: 'ALLOW', reasons: [], alternatives: [] })),
+  // Decision support. Stubbed so these panels cannot reach the real API
+  // from a unit test — an unstubbed call would fail silently and the
+  // panels would render empty, which is indistinguishable from working.
+  brief: vi.fn(async () => ({
+    brief: '44-year-old female. SEVERE allergy: Penicillin (Anaphylaxis).',
+    ageYears: 44,
+    severeAllergies: [{ substanceLabel: 'Penicillin', reaction: 'Anaphylaxis' }],
+    chronicConditions: [],
+    currentMedications: [],
+    lastSeen: null,
+    derivedFrom: 'STRUCTURED_RECORD' as const,
+  })),
+  triageAssist: vi.fn(async () => ({
+    urgency: 'EMERGENCY',
+    redFlag: false,
+    rulesFired: [],
+    inactiveRulesMatched: ['RF001'],
+    requiredCapabilities: ['EMERGENCY_24H', 'ECG'],
+    minKephLevel: 4,
+    historyFactors: [],
+    adviceEn: 'Seek emergency care.',
+    advisory: true as const,
+    disclaimer:
+      'Decision support only. These rules do not diagnose, and the clinical judgement in the room overrides them.',
+  })),
+  destinations: vi.fn(async () => ({
+    requiredCapabilities: ['SURGERY_GENERAL'],
+    destinations: [
+      { id: 'f2', name: 'Kisumu County Hospital', kephLevel: 4, mflCode: null, locality: null, is24Hour: true, distanceKm: 12 },
+    ],
+  })),
 };
 
 const authStub = {
@@ -306,5 +337,75 @@ describe('the encounter screen', () => {
     await userEvent.click(screen.getByRole('button', { name: /complete encounter/i }));
     await waitFor(() => expect(nhpStub.closeEncounter).toHaveBeenCalledTimes(2));
     expect(nhpStub.openEncounter).toHaveBeenCalledTimes(1);
+  });
+});
+
+/*
+ * CLINICAL DECISION SUPPORT ON THE ENCOUNTER SCREEN.
+ *
+ * Advisory tools, and the properties that keep them advisory:
+ *
+ *   - The brief says it was assembled, not generated. A clinician must
+ *     never have to wonder whether a sentence came from a model.
+ *   - Triage assist NAMES the inactive red-flag rules. They are the people
+ *     who can get those rules signed off, and hiding it is how a rule set
+ *     stays unreviewed forever.
+ *   - Nothing here writes to the record.
+ */
+describe('decision support', () => {
+  it('briefs the clinician and says the brief was assembled, not generated', async () => {
+    render(<EncounterPage />);
+
+    expect(await screen.findByText(/At a glance/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/SEVERE allergy: Penicillin/i),
+    ).toBeInTheDocument();
+    // The line that stops it being mistaken for a model's summary.
+    expect(screen.getByText(/Nothing here was generated/i)).toBeInTheDocument();
+  });
+
+  it('NAMES an inactive red-flag rule to the clinician', async () => {
+    render(<EncounterPage />);
+
+    const input = await screen.findByPlaceholderText(/chest_pain/i);
+    await userEvent.type(input, 'chest_pain, breathlessness');
+    await userEvent.click(screen.getByRole('button', { name: /check rules/i }));
+
+    // A citizen is never shown a rule id; a clinician always is, because
+    // they are the one who can say whether RF001 should be active.
+    expect(await screen.findByText(/RF001 matched but is not active/i)).toBeInTheDocument();
+    expect(screen.getByText(/Awaiting clinical review/i)).toBeInTheDocument();
+    expect(nhpStub.triageAssist).toHaveBeenCalledWith('NHP-1234-5678', [
+      'chest_pain',
+      'breathlessness',
+    ]);
+  });
+
+  it('carries the advisory disclaimer with every result', async () => {
+    render(<EncounterPage />);
+
+    const input = await screen.findByPlaceholderText(/chest_pain/i);
+    await userEvent.type(input, 'fever');
+    await userEvent.click(screen.getByRole('button', { name: /check rules/i }));
+
+    expect(
+      await screen.findByText(/clinical judgement in the room overrides/i),
+    ).toBeInTheDocument();
+  });
+
+  it('writes nothing to the record', async () => {
+    render(<EncounterPage />);
+
+    const input = await screen.findByPlaceholderText(/chest_pain/i);
+    await userEvent.type(input, 'fever');
+    await userEvent.click(screen.getByRole('button', { name: /check rules/i }));
+    await screen.findByText(/Urgency/i);
+
+    // Decision support is a question, not an entry. Nothing it does may
+    // reach an append-only clinical table.
+    expect(nhpStub.recordDiagnosis).not.toHaveBeenCalled();
+    expect(nhpStub.recordTreatment).not.toHaveBeenCalled();
+    expect(nhpStub.recordMedication).not.toHaveBeenCalled();
+    expect(nhpStub.openEncounter).not.toHaveBeenCalled();
   });
 });

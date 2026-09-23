@@ -92,6 +92,35 @@ const config: Config = {
       maxWidth: {
         prose: '65ch',
       },
+      /*
+       * Motion for the matching surface.
+       *
+       * Deliberately small and short. This screen tells somebody where to
+       * take a sick child; movement here is to show that work is happening,
+       * never to entertain. Everything below is disabled wholesale by the
+       * prefers-reduced-motion block in globals.css.
+       */
+      keyframes: {
+        'step-in': {
+          '0%': { opacity: '0', transform: 'translateY(4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        /** The pulse on the step currently being worked. */
+        'pulse-dot': {
+          '0%, 100%': { opacity: '1', transform: 'scale(1)' },
+          '50%': { opacity: '0.45', transform: 'scale(0.82)' },
+        },
+        /** A slow sheen across the panel while matching runs. */
+        sheen: {
+          '0%': { backgroundPosition: '-160% 0' },
+          '100%': { backgroundPosition: '260% 0' },
+        },
+      },
+      animation: {
+        'step-in': 'step-in 260ms ease-out both',
+        'pulse-dot': 'pulse-dot 1.1s ease-in-out infinite',
+        sheen: 'sheen 1.6s linear infinite',
+      },
     },
   },
   plugins: [],

@@ -31,6 +31,7 @@ import { Icon, type IconName } from './icons';
 const LINKS: Array<{ href: string; label: string; icon: IconName; admin: boolean }> = [
   { href: '/facility/reception', label: 'Reception', icon: 'citizen', admin: false },
   { href: '/facility/staff', label: 'Staff', icon: 'clinician', admin: true },
+  { href: '/facility/capabilities', label: 'Capabilities', icon: 'facility', admin: true },
   { href: '/facility/profile', label: 'Facility', icon: 'facility', admin: true },
 ];
 
